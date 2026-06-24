@@ -26,7 +26,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['eslint.config.js', 'prettier.config.js'],
+    files: ['eslint.config.js', 'jest.config.js', 'prettier.config.js'],
     extends: [tseslint.configs.disableTypeChecked],
   },
   {

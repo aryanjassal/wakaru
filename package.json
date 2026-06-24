@@ -12,7 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm test",
-    "test": "tsx --test src/__tests__/*.test.ts"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "dependencies": {
     "@rezi-ui/core": "0.1.0-beta.2",
@@ -21,12 +21,14 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^18.0.0",
+    "@types/node": "^18.19.130",
     "eslint": "^10.5.0",
     "eslint-config-prettier": "^10.1.8",
+    "jest": "^30.4.2",
     "prettier": "^3.8.4",
+    "ts-jest": "^29.4.11",
     "tsx": "^4.20.0",
-    "typescript": "^5.6.3",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.62.0"
   },
   "engines": {
