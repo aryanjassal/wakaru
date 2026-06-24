@@ -1,0 +1,31 @@
+{
+  "llm": {
+    "provider": "ollama",
+    "model": "qwen3.5:9b",
+    "apiBase": "http://localhost:11434",
+    "maxInputChars": 4000
+  },
+  "storage": {
+    "wordsDir": "~/.config/wakaru/words"
+  },
+  "theme": {
+    "name": "night",
+    "customPath": "~/.config/wakaru/theme.json"
+  },
+  "anki": {
+    "fields": [
+      {
+        "name": "Front",
+        "purpose": "Recognition card front. HTML is allowed. Show the target expression prominently and include the source Japanese sentence."
+      },
+      {
+        "name": "Back",
+        "purpose": "Recognition card back. HTML is allowed. Include reading, meaning, part of speech, the Japanese sentence, and English translation."
+      },
+      {
+        "name": "Tags",
+        "purpose": "Space-separated Anki tags. Include wakaru, part of speech, and concise topic tags."
+      }
+    ]
+  }
+}

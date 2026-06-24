@@ -1,199 +1,125 @@
-import type { Toast } from "@rezi-ui/core";
+import type { RegisteredBinding, Toast } from '@rezi-ui/core';
 
-export type RouteId = "bridge" | "engineering" | "crew" | "comms" | "cargo" | "settings";
+export type ThemeName = 'night' | 'day' | 'custom';
 
-export type AlertLevel = "green" | "yellow" | "red";
+export type MiningStatus = 'idle' | 'analyzing' | 'saving' | 'error';
 
-export type ThemeName = "day" | "night" | "alert";
+export type MiningCandidateStatus = 'pending' | 'added' | 'skipped';
 
-export type CrewMember = Readonly<{
-  id: string;
+export type AnkiFieldConfig = Readonly<{
   name: string;
-  rank: "ensign" | "lieutenant" | "commander" | "captain";
-  department: "bridge" | "engineering" | "medical" | "science" | "security";
-  status: "active" | "off-duty" | "injured" | "away";
-  efficiency: number;
+  purpose: string;
 }>;
 
-export type Subsystem = Readonly<{
+export type AnkiFieldValues = Readonly<Record<string, string>>;
+
+export type MiningCandidate = Readonly<{
   id: string;
-  name: string;
-  parent: string | null;
-  health: number;
-  power: number;
-  temperature: number;
+  expression: string;
+  reading: string;
+  meaning: string;
+  contextMeaning: string;
+  partOfSpeech: string;
+  pitchAccent?: string | undefined;
+  nuance?: string | undefined;
+  exampleJapanese: string;
+  exampleEnglish: string;
+  tags: readonly string[];
+  ankiFields: AnkiFieldValues;
+  status: MiningCandidateStatus;
 }>;
 
-export type CargoItem = Readonly<{
-  id: string;
-  name: string;
-  category: "fuel" | "supplies" | "equipment" | "medical" | "ordnance";
-  quantity: number;
-  priority: number;
-  bay: number;
+export type SavedWord = Readonly<
+  Omit<MiningCandidate, 'status'> & {
+    sourceText: string;
+    createdAt: string;
+  }
+>;
+
+export type WakaruConfig = Readonly<{
+  llm: Readonly<{
+    provider: 'ollama';
+    model: string;
+    apiBase: string;
+    maxInputChars: number;
+  }>;
+  storage: Readonly<{
+    wordsDir: string;
+  }>;
+  theme: Readonly<{
+    name: ThemeName;
+    customPath: string;
+  }>;
+  anki: Readonly<{
+    fields: readonly AnkiFieldConfig[];
+  }>;
 }>;
 
-export type CommsMessage = Readonly<{
-  id: string;
-  timestamp: number;
-  channel: "fleet" | "local" | "emergency" | "internal";
-  sender: string;
-  content: string;
-  priority: "routine" | "urgent" | "critical";
-  acknowledged: boolean;
-}>;
-
-export type ShipToast = Readonly<{
+export type WakaruToast = Readonly<{
   id: string;
   message: string;
-  level: "info" | "success" | "warning" | "error";
+  level: 'info' | 'success' | 'warning' | 'error';
   timestamp: number;
   durationMs: number;
 }>;
 
-export type TelemetrySnapshot = Readonly<{
-  reactorPower: number;
-  shieldStrength: number;
-  hullIntegrity: number;
-  warpFactor: number;
-  fuelLevel: number;
-  lifeSupportPct: number;
-}>;
-
-export type CrewEditorDraft = Readonly<{
-  department: CrewMember["department"];
-  status: CrewMember["status"];
-}>;
-
-export type CargoCategoryFilter = CargoItem["category"] | "all";
-
-export type NotificationMode = "all" | "critical" | "none";
-
-export type StarshipState = Readonly<{
-  tick: number;
+export type WakaruState = Readonly<{
   nowMs: number;
-  alertLevel: AlertLevel;
+  viewportCols: number;
+  viewportRows: number;
   themeName: ThemeName;
-  showHelp: boolean;
+  config: WakaruConfig;
+  inputText: string;
+  status: MiningStatus;
+  statusMessage: string;
+  errorMessage: string | null;
+  candidates: readonly MiningCandidate[];
+  selectedCandidateId: string | null;
+  savedWords: readonly SavedWord[];
   showCommandPalette: boolean;
   commandQuery: string;
   commandIndex: number;
-  autopilot: boolean;
-  paused: boolean;
-  viewportCols: number;
-  viewportRows: number;
-
-  telemetry: TelemetrySnapshot;
-  telemetryHistory: readonly number[];
-  shieldHistory: readonly number[];
-
-  crew: readonly CrewMember[];
-  selectedCrewId: string | null;
-  crewSearchQuery: string;
-  editingCrew: boolean;
-  crewLoading: boolean;
-  crewPage: number;
-  crewPageSize: number;
-  crewDraft: CrewEditorDraft;
-
-  subsystems: readonly Subsystem[];
-  expandedSubsystemIds: readonly string[];
-  engineeringDiagMode: boolean;
-  boostActive: boolean;
-  splitSizes: readonly number[];
-
-  messages: readonly CommsMessage[];
-  activeChannel: CommsMessage["channel"];
-  showHailDialog: boolean;
-  hailTarget: string;
-  hailMessage: string;
-  commsSearchQuery: string;
-  commsScrollTop: number;
-  expandedMessageIds: readonly string[];
-
-  cargo: readonly CargoItem[];
-  cargoScrollTop: number;
-  cargoSortBy: "name" | "category" | "quantity" | "priority";
-  cargoCategoryFilter: CargoCategoryFilter;
-  selectedCargoId: string | null;
-  cargoBulkChecked: boolean;
-
-  shipName: string;
-  alertThreshold: number;
-  defaultChannel: CommsMessage["channel"];
-  notificationsMode: NotificationMode;
-  settingsNotes: string;
-  showResetDialog: boolean;
-
-  toasts: readonly ShipToast[];
+  toasts: readonly WakaruToast[];
 }>;
 
-export type StarshipAction =
-  | Readonly<{ type: "tick"; nowMs: number }>
-  | Readonly<{ type: "set-viewport"; cols: number; rows: number }>
-  | Readonly<{ type: "toggle-pause" }>
-  | Readonly<{ type: "toggle-autopilot" }>
-  | Readonly<{ type: "set-alert"; level: AlertLevel }>
-  | Readonly<{ type: "toggle-red-alert" }>
-  | Readonly<{ type: "cycle-theme" }>
-  | Readonly<{ type: "set-theme"; theme: ThemeName }>
-  | Readonly<{ type: "toggle-help" }>
-  | Readonly<{ type: "toggle-command-palette" }>
-  | Readonly<{ type: "set-command-query"; query: string }>
-  | Readonly<{ type: "set-command-index"; index: number }>
-  | Readonly<{ type: "apply-command"; commandId: string }>
-  | Readonly<{ type: "select-crew"; crewId: string | null }>
-  | Readonly<{ type: "set-crew-search"; query: string }>
-  | Readonly<{ type: "toggle-crew-editor" }>
-  | Readonly<{ type: "set-crew-loading"; loading: boolean }>
-  | Readonly<{ type: "set-crew-page"; page: number }>
-  | Readonly<{ type: "set-crew-draft-department"; department: CrewMember["department"] }>
-  | Readonly<{ type: "set-crew-draft-status"; status: CrewMember["status"] }>
+export type WakaruAction =
+  | Readonly<{ type: 'tick'; nowMs: number }>
+  | Readonly<{ type: 'set-viewport'; cols: number; rows: number }>
+  | Readonly<{ type: 'cycle-theme' }>
+  | Readonly<{ type: 'set-input'; text: string }>
+  | Readonly<{ type: 'set-status'; status: MiningStatus; message?: string }>
+  | Readonly<{ type: 'set-error'; message: string }>
+  | Readonly<{ type: 'set-candidates'; candidates: readonly MiningCandidate[] }>
+  | Readonly<{ type: 'select-candidate'; candidateId: string | null }>
   | Readonly<{
-      type: "assign-crew";
-      crewId: string;
-      department: CrewMember["department"];
-      status: CrewMember["status"];
+      type: 'mark-candidate';
+      candidateId: string;
+      status: MiningCandidateStatus;
     }>
-  | Readonly<{ type: "toggle-subsystem"; subsystemId: string }>
-  | Readonly<{ type: "toggle-diagnostics" }>
-  | Readonly<{ type: "toggle-boost" }>
-  | Readonly<{ type: "set-split-sizes"; sizes: readonly number[] }>
-  | Readonly<{ type: "switch-channel"; channel: CommsMessage["channel"] }>
-  | Readonly<{ type: "set-comms-search"; query: string }>
-  | Readonly<{ type: "set-comms-scroll"; scrollTop: number }>
-  | Readonly<{ type: "toggle-message-expanded"; messageId: string; expanded: boolean }>
-  | Readonly<{ type: "acknowledge-message"; messageId: string }>
-  | Readonly<{ type: "toggle-hail-dialog" }>
-  | Readonly<{ type: "set-hail-target"; target: string }>
-  | Readonly<{ type: "set-hail-message"; message: string }>
-  | Readonly<{ type: "send-hail"; target: string; message: string }>
-  | Readonly<{ type: "set-cargo-scroll"; scrollTop: number }>
-  | Readonly<{ type: "set-cargo-sort"; sortBy: StarshipState["cargoSortBy"] }>
-  | Readonly<{ type: "set-cargo-category-filter"; category: CargoCategoryFilter }>
-  | Readonly<{ type: "select-cargo"; cargoId: string | null }>
-  | Readonly<{ type: "set-cargo-bulk-checked"; checked: boolean }>
-  | Readonly<{ type: "set-cargo-priority"; cargoId: string; priority: number }>
-  | Readonly<{ type: "set-ship-name"; name: string }>
-  | Readonly<{ type: "set-alert-threshold"; threshold: number }>
-  | Readonly<{ type: "set-default-channel"; channel: CommsMessage["channel"] }>
-  | Readonly<{ type: "set-notifications-mode"; mode: NotificationMode }>
-  | Readonly<{ type: "set-settings-notes"; notes: string }>
-  | Readonly<{ type: "toggle-reset-dialog" }>
-  | Readonly<{ type: "reset-settings" }>
-  | Readonly<{ type: "add-message"; message: CommsMessage }>
-  | Readonly<{ type: "add-toast"; toast: ShipToast }>
-  | Readonly<{ type: "dismiss-toast"; toastId: string }>
-  | Readonly<{ type: "prune-toasts"; nowMs: number }>;
+  | Readonly<{ type: 'set-saved-words'; words: readonly SavedWord[] }>
+  | Readonly<{ type: 'add-saved-word'; word: SavedWord }>
+  | Readonly<{ type: 'toggle-command-palette' }>
+  | Readonly<{ type: 'set-command-query'; query: string }>
+  | Readonly<{ type: 'set-command-index'; index: number }>
+  | Readonly<{ type: 'add-toast'; toast: WakaruToast }>
+  | Readonly<{ type: 'dismiss-toast'; toastId: string }>
+  | Readonly<{ type: 'prune-toasts'; nowMs: number }>;
 
-export type RouteDeps = Readonly<{
-  dispatch: (action: StarshipAction) => void;
-  navigate: (routeId: RouteId) => void;
-  routes: readonly Readonly<{ id: RouteId; title: string }>[];
-  getBindings?: () => readonly import("@rezi-ui/core").RegisteredBinding[];
+export type WakaruRouteId = 'mine' | 'library' | 'settings';
+
+export type WakaruRouteDeps = Readonly<{
+  dispatch: (action: WakaruAction) => void;
+  analyzeInput: () => void;
+  addSelected: () => void;
+  skipSelected: () => void;
+  exportAnki: () => void;
+  navigate: (routeId: WakaruRouteId) => void;
+  routes: readonly Readonly<{ id: WakaruRouteId; title: string }>[];
+  stop: () => void;
+  getBindings?: () => readonly RegisteredBinding[];
 }>;
 
-export function toCoreToast(toast: ShipToast): Toast {
+export function toCoreWakaruToast(toast: WakaruToast): Toast {
   return {
     id: toast.id,
     message: toast.message,
