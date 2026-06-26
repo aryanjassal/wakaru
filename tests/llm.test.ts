@@ -1,5 +1,8 @@
 import { describe, it, expect } from '@jest/globals';
-import { analyzeWithOllama } from '../wakaru/llm.js';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { analyzeWithOllama } from '@/core/llm.js';
 import { getTestConfig } from './config.js';
 
 describe('LLM', () => {
@@ -10,7 +13,7 @@ describe('LLM', () => {
       apiBase: 'http://ollama.test',
     },
     storage: { wordsDir: '/tmp/wakaru-test' },
-    theme: { name: 'night', customPath: '/tmp/theme.json' },
+    theme: { name: 'night' },
     anki: {
       fields: [{ name: 'Front', purpose: 'Target expression' }],
     },
@@ -141,6 +144,47 @@ describe('LLM', () => {
     }
   });
 
+  it('analyzeWithOllama tolerates common model response shape drift', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            response: JSON.stringify([
+              {
+                word: '警察官',
+                furigana: 'けいさつかん',
+                definition: 'police officer',
+                part_of_speech: 'noun',
+                pitchAccent: '0',
+                fields: {
+                  Front: '警察官',
+                  Attempts: 1,
+                },
+              },
+            ]),
+          }),
+          { status: 200 }
+        )
+      );
+
+    try {
+      const candidates = await analyzeWithOllama(
+        config,
+        'はい、私は警察官です。'
+      );
+
+      expect(candidates[0]?.expression).toBe('警察官');
+      expect(candidates[0]?.reading).toBe('けいさつかん');
+      expect(candidates[0]?.meaning).toBe('police officer');
+      expect(candidates[0]?.contextMeaning).toBe('police officer');
+      expect(candidates[0]?.partOfSpeech).toBe('noun');
+      expect(candidates[0]?.ankiFields.Attempts).toBe('1');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('analyzeWithOllama reports HTTP failures', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = () =>
@@ -156,7 +200,10 @@ describe('LLM', () => {
   });
 
   it('analyzeWithOllama reports readable candidate schema errors', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'wakaru-llm-log-'));
+    const previousConfig = process.env.WAKARU_CONFIG;
     const originalFetch = globalThis.fetch;
+    process.env.WAKARU_CONFIG = join(dir, 'config.json');
     globalThis.fetch = () =>
       Promise.resolve(
         new Response(
@@ -185,8 +232,19 @@ describe('LLM', () => {
       ).rejects.toThrow(
         /candidate response is invalid: candidates.0.meaning: must not be empty/
       );
+      const log = await readFile(join(dir, 'ollama-failures.jsonl'), 'utf8');
+      const entry = JSON.parse(log.trim()) as Record<string, unknown>;
+      expect(entry.model).toBe('test-model');
+      expect(entry.inputText).toBe('雑な説明だった。');
+      expect(String(entry.responseText)).toMatch(/雑/);
     } finally {
       globalThis.fetch = originalFetch;
+      if (previousConfig === undefined) {
+        delete process.env.WAKARU_CONFIG;
+      } else {
+        process.env.WAKARU_CONFIG = previousConfig;
+      }
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

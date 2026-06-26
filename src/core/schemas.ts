@@ -1,4 +1,4 @@
-import type { MiningCandidate, SavedWord, WakaruConfig } from '../types.js';
+import type { MiningCandidate, SavedWord, WakaruConfig } from './types.js';
 
 import { z } from 'zod/v4';
 
@@ -9,10 +9,22 @@ const optionalNonEmptyString = z
   .min(1, 'must not be empty')
   .optional();
 const positiveInt = z.number().int().positive();
-const hexColor = z
-  .string()
-  .trim()
-  .regex(/^#?[0-9a-fA-F]{6}$/, 'must be a 6-digit hex color like #8bcf8b');
+const stringList = z
+  .array(nonEmptyString)
+  .default([])
+  .catch([])
+  .transform((items) => [...new Set(items)]);
+const generatedAnkiFields = z
+  .record(z.string(), z.unknown())
+  .default({})
+  .catch({})
+  .transform((fields): Record<string, string> => {
+    const entries = Object.entries(fields)
+      .filter(([key, value]) => key.trim() && value != null)
+      .map(([key, value]) => [key, String(value).trim()] as const)
+      .filter(([, value]) => value);
+    return Object.fromEntries(entries);
+  });
 
 export const DEFAULT_ANKI_FIELDS = [
   {
@@ -58,14 +70,19 @@ export const wakaruConfigSchema = z
       .optional(),
     theme: z
       .object({
-        name: z.enum(['night', 'day', 'custom']).optional(),
-        customPath: nonEmptyString.optional(),
+        name: z.literal('night').optional(),
       })
       .strict()
       .optional(),
     anki: z
       .object({
         fields: z.array(ankiFieldConfigSchema).min(1).optional(),
+      })
+      .strict()
+      .optional(),
+    analysis: z
+      .object({
+        sentenceModeThreshold: positiveInt.optional(),
       })
       .strict()
       .optional(),
@@ -86,81 +103,110 @@ export const wakaruConfigSchema = z
     },
     theme: {
       name: config.theme?.name ?? 'night',
-      customPath: config.theme?.customPath ?? '~/.config/wakaru/theme.json',
     },
     anki: {
       fields: config.anki?.fields ?? [...DEFAULT_ANKI_FIELDS],
     },
+    analysis: {
+      sentenceModeThreshold: config.analysis?.sentenceModeThreshold ?? 80,
+    },
   })) satisfies z.ZodType<WakaruConfig>;
 
-export const customThemeSchema = z
-  .object({
-    label: nonEmptyString.default('Custom'),
-    colors: z
-      .object({
-        base: hexColor.optional(),
-        panel: hexColor.optional(),
-        panelInset: hexColor.optional(),
-        panelElevated: hexColor.optional(),
-        text: hexColor.optional(),
-        muted: hexColor.optional(),
-        dim: hexColor.optional(),
-        inverse: hexColor.optional(),
-        accent: hexColor.optional(),
-        info: hexColor.optional(),
-        success: hexColor.optional(),
-        warning: hexColor.optional(),
-        danger: hexColor.optional(),
-        border: hexColor.optional(),
-        borderMuted: hexColor.optional(),
-        focus: hexColor.optional(),
-        focusBg: hexColor.optional(),
-        selected: hexColor.optional(),
-        selectedText: hexColor.optional(),
-      })
-      .strict()
-      .default({}),
-  })
-  .strict();
+const rawCandidateSchema = z.object({
+  expression: nonEmptyString,
+  reading: nonEmptyString,
+  meaning: nonEmptyString,
+  contextMeaning: optionalNonEmptyString,
+  partOfSpeech: optionalNonEmptyString,
+  nuance: optionalNonEmptyString,
+  exampleJapanese: optionalNonEmptyString,
+  exampleEnglish: optionalNonEmptyString,
+  tags: stringList,
+  ankiFields: generatedAnkiFields,
+});
+
+function aliasCandidateFields(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value;
+  }
+  const item = value as Record<string, unknown>;
+  return {
+    ...item,
+    expression:
+      item.expression ?? item.word ?? item.term ?? item.vocabulary ?? item.text,
+    reading: item.reading ?? item.furigana ?? item.kana,
+    meaning: item.meaning ?? item.definition ?? item.gloss,
+    contextMeaning: item.contextMeaning ?? item.context_meaning,
+    partOfSpeech: item.partOfSpeech ?? item.part_of_speech ?? item.pos,
+    exampleJapanese:
+      item.exampleJapanese ??
+      item.example_japanese ??
+      item.japaneseExample ??
+      item.sentence,
+    exampleEnglish:
+      item.exampleEnglish ??
+      item.example_english ??
+      item.englishExample ??
+      item.translation,
+    ankiFields: item.ankiFields ?? item.anki_fields ?? item.fields,
+  };
+}
+
+function completeCandidate(candidate: z.infer<typeof rawCandidateSchema>) {
+  return {
+    ...candidate,
+    contextMeaning: candidate.contextMeaning ?? candidate.meaning,
+    partOfSpeech: candidate.partOfSpeech ?? 'unknown',
+    exampleJapanese: candidate.exampleJapanese ?? candidate.expression,
+    exampleEnglish: candidate.exampleEnglish ?? candidate.meaning,
+  };
+}
 
 export const miningCandidateModelSchema = z
-  .object({
-    expression: nonEmptyString,
-    reading: nonEmptyString,
-    meaning: nonEmptyString,
-    contextMeaning: nonEmptyString,
-    partOfSpeech: nonEmptyString,
-    pitchAccent: optionalNonEmptyString,
-    nuance: optionalNonEmptyString,
-    exampleJapanese: nonEmptyString,
-    exampleEnglish: nonEmptyString,
-    tags: z.array(nonEmptyString).default([]),
-    ankiFields: z.record(z.string(), z.string()).default({}),
-  })
-  .strict();
+  .preprocess(aliasCandidateFields, rawCandidateSchema)
+  .transform(completeCandidate);
 
-export const modelCandidateResponseSchema = z
-  .object({
+export const modelCandidateResponseSchema = z.preprocess(
+  (value) => {
+    if (Array.isArray(value)) return { candidates: value };
+    return value;
+  },
+  z.object({
     candidates: z
       .array(miningCandidateModelSchema)
       .min(1, 'must include at least one candidate'),
   })
-  .strict();
+);
 
-export const miningCandidateSchema = miningCandidateModelSchema
-  .extend({
-    id: nonEmptyString,
-    status: z.enum(['pending', 'added', 'skipped']),
-  })
-  .strict() satisfies z.ZodType<MiningCandidate>;
+export const miningCandidateSchema = z
+  .preprocess(
+    aliasCandidateFields,
+    rawCandidateSchema.extend({
+      id: nonEmptyString,
+      status: z.enum(['pending', 'added', 'skipped']),
+    })
+  )
+  .transform((candidate) => ({
+    ...completeCandidate(candidate),
+    id: candidate.id,
+    status: candidate.status,
+  })) satisfies z.ZodType<MiningCandidate>;
 
-export const savedWordSchema = miningCandidateModelSchema
-  .extend({
-    id: nonEmptyString,
-    sourceText: z.string(),
-    createdAt: nonEmptyString,
-  })
-  .strict() satisfies z.ZodType<SavedWord>;
+export const savedWordSchema = z
+  .preprocess(
+    aliasCandidateFields,
+    rawCandidateSchema.extend({
+      id: nonEmptyString,
+      sourceText: z.string(),
+      createdAt: nonEmptyString,
+    })
+  )
+  .transform((word) => ({
+    ...completeCandidate(word),
+    id: word.id,
+    sourceText: word.sourceText,
+    createdAt: word.createdAt,
+  })) satisfies z.ZodType<SavedWord>;
 
 export const savedWordsSchema = z.array(savedWordSchema);
 

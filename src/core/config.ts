@@ -1,7 +1,8 @@
+import type { WakaruConfig } from './types.js';
+
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import type { WakaruConfig } from '../types.js';
 import {
   parseJsonText,
   parseWithSchema,
@@ -22,6 +23,10 @@ export function configPath(): string {
   return resolveUserPath(
     process.env.WAKARU_CONFIG ?? '~/.config/wakaru/config.json'
   );
+}
+
+export function configDir(): string {
+  return dirname(configPath());
 }
 
 export function loadConfig(): WakaruConfig {

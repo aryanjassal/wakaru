@@ -7,7 +7,7 @@ import {
   candidateToSavedWord,
   loadSavedWords,
   saveWord,
-} from '../wakaru/storage.js';
+} from '@/core/storage.js';
 import { getTestConfig, createTestCandidate } from './config.js';
 
 describe('Storage', () => {
@@ -17,7 +17,6 @@ describe('Storage', () => {
       storage: { wordsDir: dir },
       theme: {
         name: 'night',
-        customPath: join(dir, 'theme.json'),
       },
     });
     const candidate = createTestCandidate({
@@ -102,7 +101,6 @@ describe('Storage', () => {
       storage: { wordsDir: dir },
       theme: {
         name: 'night',
-        customPath: join(dir, 'theme.json'),
       },
     });
 

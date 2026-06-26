@@ -1,9 +1,9 @@
 import { describe, it, expect } from '@jest/globals';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { configureCustomTheme, themeSpec } from '../theme.js';
-import { loadConfig } from '../wakaru/config.js';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { loadConfig } from '@/core/config.js';
+import { COLORS } from '../src/tui/theme.js';
 import { getTestConfig } from './config.js';
 
 describe('Config and Theme', () => {
@@ -18,7 +18,7 @@ describe('Config and Theme', () => {
         JSON.stringify(
           getTestConfig({
             storage: { wordsDir: join(dir, 'words') },
-            theme: { name: 'custom', customPath: join(dir, 'theme.json') },
+            theme: { name: 'night' },
             anki: {
               fields: [
                 { name: 'Front', purpose: 'front field' },
@@ -37,7 +37,7 @@ describe('Config and Theme', () => {
       expect(config.llm.apiBase).toBe('http://localhost:11434');
       expect(config.llm.maxInputChars).toBe(4_000);
       expect(config.storage.wordsDir).toBe(join(dir, 'words'));
-      expect(config.theme.name).toBe('custom');
+      expect(config.theme.name).toBe('night');
       expect(config.anki.fields.map((field) => field.name)).toEqual([
         'Front',
         'Back',
@@ -81,56 +81,8 @@ describe('Config and Theme', () => {
     }
   });
 
-  it('custom theme json can be loaded without recompiling', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'wakaru-theme-'));
-    const path = join(dir, 'theme.json');
-
-    try {
-      await writeFile(
-        path,
-        JSON.stringify({
-          label: 'Matcha',
-          colors: {
-            base: '#101510',
-            panel: '#1c281d',
-            text: '#eef5ea',
-            accent: '#8bcf8b',
-          },
-        }),
-        'utf8'
-      );
-
-      configureCustomTheme(path);
-      expect(themeSpec('custom').label).toBe('Matcha');
-
-      const raw = await readFile(path, 'utf8');
-      expect(raw).toMatch(/Matcha/);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('custom theme json reports readable color errors', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'wakaru-theme-invalid-'));
-    const path = join(dir, 'theme.json');
-
-    try {
-      await writeFile(
-        path,
-        JSON.stringify({
-          label: 'Bad',
-          colors: {
-            accent: 'green',
-          },
-        }),
-        'utf8'
-      );
-
-      expect(() => configureCustomTheme(path)).toThrow(
-        /Theme file .* is invalid: colors.accent: must be a 6-digit hex color/
-      );
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+  it('TUI exposes only the built-in night theme', () => {
+    expect(COLORS.bg).toBe('#0b0f16');
+    expect(COLORS.brand).toBe('#5ed6b5');
   });
 });

@@ -2,7 +2,7 @@ import { describe, it, expect } from '@jest/globals';
 import {
   createInitialWakaruState,
   reduceWakaruState,
-} from '../wakaru/state.js';
+} from '../src/tui/state.js';
 import { getTestConfig, createTestCandidate } from './config.js';
 
 describe('State', () => {
@@ -17,7 +17,6 @@ describe('State', () => {
     },
     theme: {
       name: 'night',
-      customPath: '/tmp/wakaru-theme.json',
     },
   });
 
@@ -40,7 +39,6 @@ describe('State', () => {
       rows: 32,
     });
 
-    expect(state.themeName).toBe('night');
     expect(state.status).toBe('idle');
     expect(state.candidates.length).toBe(0);
     expect(state.savedWords.length).toBe(0);

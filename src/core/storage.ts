@@ -1,6 +1,7 @@
+import type { MiningCandidate, SavedWord, WakaruConfig } from './types.js';
+
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { MiningCandidate, SavedWord, WakaruConfig } from '../types.js';
 import { resolveUserPath } from './config.js';
 import {
   parseJsonText,
@@ -47,7 +48,6 @@ function backHtml(word: SavedWord): string {
     word.meaning,
     word.partOfSpeech,
     word.nuance ? `Nuance: ${word.nuance}` : '',
-    word.pitchAccent ? `Pitch: ${word.pitchAccent}` : '',
   ].filter(Boolean);
 
   return [
@@ -65,7 +65,6 @@ function legacyBack(word: SavedWord): string {
     `Meaning: ${word.meaning}`,
     `In context: ${word.contextMeaning}`,
     word.nuance ? `Nuance: ${word.nuance}` : '',
-    word.pitchAccent ? `Pitch: ${word.pitchAccent}` : '',
   ]
     .filter(Boolean)
     .join('<br>');
@@ -153,7 +152,6 @@ export function candidateToSavedWord(
     meaning: candidate.meaning,
     contextMeaning: candidate.contextMeaning,
     partOfSpeech: candidate.partOfSpeech,
-    pitchAccent: candidate.pitchAccent,
     nuance: candidate.nuance,
     exampleJapanese: candidate.exampleJapanese,
     exampleEnglish: candidate.exampleEnglish,

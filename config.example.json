@@ -3,14 +3,13 @@
     "provider": "ollama",
     "model": "qwen3.5:9b",
     "apiBase": "http://localhost:11434",
-    "maxInputChars": 4000
+    "maxInputChars": 4096
   },
   "storage": {
     "wordsDir": "~/.config/wakaru/words"
   },
   "theme": {
-    "name": "night",
-    "customPath": "~/.config/wakaru/theme.json"
+    "name": "night"
   },
   "anki": {
     "fields": [
@@ -27,5 +26,8 @@
         "purpose": "Space-separated Anki tags. Include wakaru, part of speech, and concise topic tags."
       }
     ]
+  },
+  "analysis": {
+    "sentenceModeThreshold": 80
   }
 }

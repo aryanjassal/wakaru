@@ -1,7 +1,7 @@
 export default {
   extensionsToTreatAsEsm: ['.ts'],
   testEnvironment: 'node',
-  testMatch: ['**/__tests__/**/*.(test|spec).ts'],
+  testMatch: ['**/tests/**/*.(test|spec).ts'],
   transform: {
     '^.+\\.ts$': [
       'ts-jest',
@@ -11,6 +11,8 @@ export default {
     ],
   },
   moduleNameMapper: {
+    '^@/(.*)\\.js$': '<rootDir>/src/$1',
+    '^@/(.*)$': '<rootDir>/src/$1',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
 };

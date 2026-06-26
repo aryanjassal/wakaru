@@ -1,6 +1,6 @@
 # Wakaru
 
-Wakaru is a Rezi-based TUI for Japanese sentence and word mining. Paste a
+Wakaru is an OpenTUI-based TUI for Japanese sentence and word mining. Paste a
 sentence, paragraph, or short list of words, ask a local Ollama model to explain
 useful candidates in context, then choose which cards to add to an Anki import
 file.
@@ -8,7 +8,7 @@ file.
 ## Workflow
 
 1. Paste Japanese text into the Mine screen.
-2. Run analysis with `ctrl+a` or the command palette.
+2. Run analysis with `ctrl+a`.
 3. Review the model's candidates and context-specific meanings.
 4. Press `enter` to add the selected candidate or `x` to skip it.
 5. Import `anki-import.tsv` from the configured words directory into Anki.
@@ -18,7 +18,7 @@ is added.
 
 ## Requirements
 
-- Node.js 18 or newer.
+- Node.js 26.3.0 or newer with experimental FFI support.
 - Ollama running locally.
 - A local model available through Ollama, such as `qwen3.5:9b`.
 
@@ -26,16 +26,19 @@ is added.
 
 ```bash
 npm install
-npm run start
+npm run start:tui
 ```
+
+`npm run start:tui` runs Node with `--experimental-ffi`, which OpenTUI needs to
+create the native renderer.
 
 By default, Wakaru calls Ollama at `http://localhost:11434` and writes files to
 `~/.config/wakaru/words`.
 
 ## Config
 
-Copy `assets/config.json.example` to `~/.config/wakaru/config.json` and adjust
-the model, storage directory, or theme.
+Copy `docs/config.example.json` to `~/.config/wakaru/config.json` and adjust
+the model or storage directory.
 
 ```json
 {
@@ -48,50 +51,35 @@ the model, storage directory, or theme.
     "wordsDir": "~/.config/wakaru/words"
   },
   "theme": {
-    "name": "night",
-    "customPath": "~/.config/wakaru/theme.json"
+    "name": "night"
   }
 }
 ```
 
 Wakaru validates user-authored JSON with Zod and reports field-level errors.
-
-## Custom Themes
-
-Set `theme.name` to `custom` and point `theme.customPath` at a JSON file. You can
-copy `assets/theme.json.example` as a starting point. Theme files are loaded at
-startup, so changing colors does not require recompiling.
-
-Color values must be 6-digit hex strings:
-
-```json
-{
-  "label": "Matcha",
-  "colors": {
-    "base": "#101510",
-    "panel": "#1c281d",
-    "text": "#eef5ea",
-    "accent": "#8bcf8b"
-  }
-}
-```
+Invalid Ollama candidate responses are appended to
+`~/.config/wakaru/ollama-failures.jsonl` for debugging.
 
 ## Keybindings
 
-| Key           | Command             |
-| ------------- | ------------------- |
-| `q`, `ctrl+c` | Quit                |
-| `1`           | Mine screen         |
-| `2`           | Library screen      |
-| `3`           | Settings screen     |
-| `tab`         | Next screen         |
-| `shift+tab`   | Previous screen     |
-| `ctrl+p`      | Command palette     |
-| `ctrl+a`      | Analyze pasted text |
-| `enter`       | Add selected word   |
-| `x`           | Skip selected word  |
-| `ctrl+e`      | Rewrite Anki TSV    |
-| `t`           | Cycle theme         |
+| Key           | Command              |
+| ------------- | -------------------- |
+| `q`, `ctrl+c` | Quit                 |
+| `1`           | Mine screen          |
+| `2`           | Library screen       |
+| `3`           | Settings screen      |
+| `left/right`  | Previous/next screen |
+| `tab`         | Next input field     |
+| `shift+tab`   | Previous input field |
+| `ctrl+a`      | Analyze pasted text  |
+| `ctrl+w`      | Analyze custom word  |
+| `enter`       | Add selected word    |
+| `up/down`     | Select candidate     |
+| `x`           | Skip selected word   |
+| `c`           | Clear Mine screen    |
+| `space`       | Paste clipboard      |
+| `d`           | Toggle details       |
+| `ctrl+e`      | Rewrite Anki TSV     |
 
 ## Development
 

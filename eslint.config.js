@@ -12,7 +12,9 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: ['tests/*.ts'],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -30,7 +32,7 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
-    files: ['src/__tests__/**/*.ts'],
+    files: ['tests/**/*.ts'],
     rules: {
       '@typescript-eslint/no-floating-promises': 'off',
     },

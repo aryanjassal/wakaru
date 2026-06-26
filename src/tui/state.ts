@@ -1,4 +1,3 @@
-import { cycleThemeName } from '../theme.js';
 import type {
   MiningCandidate,
   SavedWord,
@@ -6,7 +5,7 @@ import type {
   WakaruConfig,
   WakaruState,
   WakaruToast,
-} from '../types.js';
+} from './types.js';
 
 const TOAST_LIMIT = 6;
 
@@ -34,11 +33,14 @@ export function createInitialWakaruState(
     nowMs,
     viewportCols: clampInt(viewport.cols, 40, 300),
     viewportRows: clampInt(viewport.rows, 18, 200),
-    themeName: config.theme.name,
     config,
     inputText: '',
+    contextText: '',
+    wordText: '',
+    inputMode: 'auto',
+    showDetails: false,
     status: 'idle',
-    statusMessage: 'Paste a Japanese sentence or word list, then analyze.',
+    statusMessage: 'Paste words or a sentence, then analyse.',
     errorMessage: null,
     candidates: [],
     selectedCandidateId: null,
@@ -72,14 +74,41 @@ export function reduceWakaruState(
       viewportRows: clampInt(action.rows, 18, 200),
     };
   }
-  if (action.type === 'cycle-theme') {
-    return {
-      ...state,
-      themeName: cycleThemeName(state.themeName),
-    };
-  }
   if (action.type === 'set-input') {
     return { ...state, inputText: action.text };
+  }
+  if (action.type === 'append-input') {
+    const separator = state.inputText.trim() ? '\n' : '';
+    return {
+      ...state,
+      inputText: `${state.inputText}${separator}${action.text}`,
+    };
+  }
+  if (action.type === 'set-context') {
+    return { ...state, contextText: action.text };
+  }
+  if (action.type === 'set-custom-word') {
+    return { ...state, wordText: action.text };
+  }
+  if (action.type === 'set-input-mode') {
+    return { ...state, inputMode: action.mode };
+  }
+  if (action.type === 'toggle-details') {
+    return { ...state, showDetails: !state.showDetails };
+  }
+  if (action.type === 'clear-mine') {
+    return {
+      ...state,
+      inputText: '',
+      contextText: '',
+      wordText: '',
+      candidates: [],
+      selectedCandidateId: null,
+      showDetails: false,
+      status: 'idle',
+      statusMessage: 'Paste words or a sentence, then analyze.',
+      errorMessage: null,
+    };
   }
   if (action.type === 'set-status') {
     return {
@@ -103,6 +132,7 @@ export function reduceWakaruState(
       ...state,
       candidates,
       selectedCandidateId: candidates[0]?.id ?? null,
+      showDetails: false,
       status: 'idle',
       statusMessage: candidates.length
         ? 'Review candidates, then add or skip each one.'
@@ -119,6 +149,19 @@ export function reduceWakaruState(
       candidates: state.candidates.map((candidate) =>
         candidate.id === action.candidateId
           ? { ...candidate, status: action.status }
+          : candidate
+      ),
+    };
+  }
+  if (action.type === 'toggle-candidate-inbox') {
+    return {
+      ...state,
+      candidates: state.candidates.map((candidate) =>
+        candidate.id === action.candidateId
+          ? {
+              ...candidate,
+              status: candidate.status === 'skipped' ? 'pending' : 'skipped',
+            }
           : candidate
       ),
     };

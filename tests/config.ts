@@ -1,9 +1,9 @@
-import type { MiningCandidate, WakaruConfig } from '../types.js';
+import type { MiningCandidate, WakaruConfig } from '@/core/types.js';
 import {
   miningCandidateSchema,
   parseWithSchema,
   wakaruConfigSchema,
-} from '../wakaru/schemas.js';
+} from '@/core/schemas.js';
 
 type TestConfigOverrides = Readonly<{
   llm?: Partial<WakaruConfig['llm']>;
@@ -27,7 +27,6 @@ export function getTestConfig(
     },
     theme: {
       name: 'night',
-      customPath: '/tmp/theme.json',
       ...overrides.theme,
     },
     anki: {
