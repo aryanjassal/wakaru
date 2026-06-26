@@ -1,11 +1,11 @@
-import type { WakaruState } from '../types.js';
+import type { TuiState } from '../types.js';
 
 import { ankiImportPath } from '@/core/storage.js';
 import { savedWordRows } from '../format.js';
 import { colorscheme } from '../theme.js';
 
 type LibraryScreenProps = Readonly<{
-  state: WakaruState;
+  state: TuiState;
 }>;
 
 export function LibraryScreen({ state }: LibraryScreenProps) {

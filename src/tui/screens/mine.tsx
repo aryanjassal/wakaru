@@ -1,18 +1,17 @@
 import type { InputRenderable, TextareaRenderable } from '@opentui/core';
 import type { RefObject } from 'react';
-import type { WakaruState } from '../types.js';
+import type { TuiState } from '../types.js';
 
 import { candidateDetailText, candidateRows } from '../format.js';
 import { colorscheme } from '../theme.js';
 
 export type MineInputRefs = Readonly<{
-  input: RefObject<TextareaRenderable | null>;
   context: RefObject<TextareaRenderable | null>;
-  customWord: RefObject<InputRenderable | null>;
+  word: RefObject<InputRenderable | null>;
 }>;
 
 type MineScreenProps = Readonly<{
-  state: WakaruState;
+  state: TuiState;
   refs: MineInputRefs;
 }>;
 
@@ -37,7 +36,7 @@ export function MineScreen({ state, refs }: MineScreenProps) {
         content="Define words and save them for studying later"
       />
       <input
-        ref={refs.customWord}
+        ref={refs.word}
         id="mine-word"
         width="100%"
         value={state.wordText}

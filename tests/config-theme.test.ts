@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { loadConfig } from '@/core/config.js';
-import { COLORS } from '../src/tui/theme.js';
+import { colorscheme } from '../src/tui/theme.js';
 import { getTestConfig } from './config.js';
 
 describe('Config and Theme', () => {
@@ -82,7 +82,7 @@ describe('Config and Theme', () => {
   });
 
   it('TUI exposes only the built-in night theme', () => {
-    expect(COLORS.bg).toBe('#0b0f16');
-    expect(COLORS.brand).toBe('#5ed6b5');
+    expect(colorscheme.bg).toBe('#1a1b26');
+    expect(colorscheme.primary).toBe('#bb9af7');
   });
 });

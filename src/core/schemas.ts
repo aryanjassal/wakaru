@@ -80,12 +80,6 @@ export const wakaruConfigSchema = z
       })
       .strict()
       .optional(),
-    analysis: z
-      .object({
-        sentenceModeThreshold: positiveInt.optional(),
-      })
-      .strict()
-      .optional(),
   })
   .strict()
   .transform((config) => ({
@@ -106,9 +100,6 @@ export const wakaruConfigSchema = z
     },
     anki: {
       fields: config.anki?.fields ?? [...DEFAULT_ANKI_FIELDS],
-    },
-    analysis: {
-      sentenceModeThreshold: config.analysis?.sentenceModeThreshold ?? 80,
     },
   })) satisfies z.ZodType<WakaruConfig>;
 

@@ -1,4 +1,4 @@
-import type { MiningCandidate, SavedWord, WakaruState } from './types.js';
+import type { MiningCandidate, SavedWord, TuiState } from './types.js';
 
 export function truncate(value: string, length: number): string {
   const text = value.replace(/\s+/g, ' ').trim();
@@ -6,7 +6,7 @@ export function truncate(value: string, length: number): string {
   return `${text.slice(0, Math.max(0, length - 1))}...`;
 }
 
-export function selectedCandidate(state: WakaruState): MiningCandidate | null {
+export function selectedCandidate(state: TuiState): MiningCandidate | null {
   return (
     state.candidates.find(
       (candidate) => candidate.id === state.selectedCandidateId
@@ -20,7 +20,7 @@ function candidateStatus(candidate: MiningCandidate): string {
   return 'inbox';
 }
 
-export function candidateRows(state: WakaruState): string {
+export function candidateRows(state: TuiState): string {
   if (!state.candidates.length) return 'No candidates yet.';
   return state.candidates
     .map((candidate, index) => {
@@ -37,7 +37,7 @@ export function candidateRows(state: WakaruState): string {
     .join('\n');
 }
 
-export function candidateDetailText(state: WakaruState): string {
+export function candidateDetailText(state: TuiState): string {
   const candidate = selectedCandidate(state);
   if (!candidate) return 'No candidate selected.';
 
@@ -82,7 +82,7 @@ export function savedWordRows(words: readonly SavedWord[]): string {
     .join('\n');
 }
 
-export function toastText(state: WakaruState): string {
+export function toastText(state: TuiState): string {
   return state.toasts
     .slice(-3)
     .map((toast) => `${toast.level}: ${toast.message}`)

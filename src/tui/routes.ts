@@ -1,7 +1,7 @@
-import type { WakaruRouteId } from './types.js';
+import type { TuiRouteId } from './types.js';
 
-export const WAKARU_ROUTES: readonly Readonly<{
-  id: WakaruRouteId;
+export const TUI_ROUTES: readonly Readonly<{
+  id: TuiRouteId;
   title: string;
 }>[] = [
   { id: 'mine', title: 'Mine' },

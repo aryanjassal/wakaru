@@ -1,10 +1,11 @@
 import type {
   MiningCandidate,
+  MiningCandidateStatus,
   SavedWord,
-  WakaruAction,
+  TuiMiningStatus,
+  TuiState,
+  TuiToast,
   WakaruConfig,
-  WakaruState,
-  WakaruToast,
 } from './types.js';
 
 const TOAST_LIMIT = 6;
@@ -14,33 +15,28 @@ function clampInt(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.round(value)));
 }
 
-function withToast(
-  state: WakaruState,
-  toast: WakaruToast
-): readonly WakaruToast[] {
+function withToast(state: TuiState, toast: TuiToast): readonly TuiToast[] {
   const next = [...state.toasts.filter((item) => item.id !== toast.id), toast];
   if (next.length > TOAST_LIMIT) next.splice(0, next.length - TOAST_LIMIT);
   return next;
 }
 
-export function createInitialWakaruState(
+export function createInitialTuiState(
   config: WakaruConfig,
   nowMs = Date.now(),
   viewport: Readonly<{ cols: number; rows: number }> = { cols: 120, rows: 40 },
   savedWords: readonly SavedWord[] = []
-): WakaruState {
+): TuiState {
   return {
     nowMs,
     viewportCols: clampInt(viewport.cols, 40, 300),
     viewportRows: clampInt(viewport.rows, 18, 200),
     config,
-    inputText: '',
     contextText: '',
     wordText: '',
-    inputMode: 'auto',
     showDetails: false,
     status: 'idle',
-    statusMessage: 'Paste words or a sentence, then analyse.',
+    statusMessage: 'Paste a word, optionally add context, then analyze.',
     errorMessage: null,
     candidates: [],
     selectedCandidateId: null,
@@ -52,7 +48,20 @@ export function createInitialWakaruState(
   };
 }
 
-export function selectedCandidate(state: WakaruState): MiningCandidate | null {
+export function createToast(
+  message: string,
+  level: TuiToast['level'] = 'info'
+): TuiToast {
+  return {
+    id: `toast-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    message,
+    level,
+    timestamp: Date.now(),
+    durationMs: 3200,
+  };
+}
+
+export function selectedCandidate(state: TuiState): MiningCandidate | null {
   return (
     state.candidates.find(
       (candidate) => candidate.id === state.selectedCandidateId
@@ -60,158 +69,124 @@ export function selectedCandidate(state: WakaruState): MiningCandidate | null {
   );
 }
 
-export function reduceWakaruState(
-  state: WakaruState,
-  action: WakaruAction
-): WakaruState {
-  if (action.type === 'tick') {
-    return { ...state, nowMs: action.nowMs };
-  }
-  if (action.type === 'set-viewport') {
-    return {
-      ...state,
-      viewportCols: clampInt(action.cols, 40, 300),
-      viewportRows: clampInt(action.rows, 18, 200),
-    };
-  }
-  if (action.type === 'set-input') {
-    return { ...state, inputText: action.text };
-  }
-  if (action.type === 'append-input') {
-    const separator = state.inputText.trim() ? '\n' : '';
-    return {
-      ...state,
-      inputText: `${state.inputText}${separator}${action.text}`,
-    };
-  }
-  if (action.type === 'set-context') {
-    return { ...state, contextText: action.text };
-  }
-  if (action.type === 'set-custom-word') {
-    return { ...state, wordText: action.text };
-  }
-  if (action.type === 'set-input-mode') {
-    return { ...state, inputMode: action.mode };
-  }
-  if (action.type === 'toggle-details') {
-    return { ...state, showDetails: !state.showDetails };
-  }
-  if (action.type === 'clear-mine') {
-    return {
-      ...state,
-      inputText: '',
-      contextText: '',
-      wordText: '',
-      candidates: [],
-      selectedCandidateId: null,
-      showDetails: false,
-      status: 'idle',
-      statusMessage: 'Paste words or a sentence, then analyze.',
-      errorMessage: null,
-    };
-  }
-  if (action.type === 'set-status') {
-    return {
-      ...state,
-      status: action.status,
-      statusMessage: action.message ?? state.statusMessage,
-      errorMessage: action.status === 'error' ? state.errorMessage : null,
-    };
-  }
-  if (action.type === 'set-error') {
-    return {
-      ...state,
-      status: 'error',
-      statusMessage: 'Action failed.',
-      errorMessage: action.message,
-    };
-  }
-  if (action.type === 'set-candidates') {
-    const candidates = action.candidates;
-    return {
-      ...state,
-      candidates,
-      selectedCandidateId: candidates[0]?.id ?? null,
-      showDetails: false,
-      status: 'idle',
-      statusMessage: candidates.length
-        ? 'Review candidates, then add or skip each one.'
-        : 'No candidates found. Try adding more context.',
-      errorMessage: null,
-    };
-  }
-  if (action.type === 'select-candidate') {
-    return { ...state, selectedCandidateId: action.candidateId };
-  }
-  if (action.type === 'mark-candidate') {
-    return {
-      ...state,
-      candidates: state.candidates.map((candidate) =>
-        candidate.id === action.candidateId
-          ? { ...candidate, status: action.status }
-          : candidate
-      ),
-    };
-  }
-  if (action.type === 'toggle-candidate-inbox') {
-    return {
-      ...state,
-      candidates: state.candidates.map((candidate) =>
-        candidate.id === action.candidateId
-          ? {
-              ...candidate,
-              status: candidate.status === 'skipped' ? 'pending' : 'skipped',
-            }
-          : candidate
-      ),
-    };
-  }
-  if (action.type === 'set-saved-words') {
-    return {
-      ...state,
-      savedWords: action.words,
-    };
-  }
-  if (action.type === 'add-saved-word') {
-    return {
-      ...state,
-      savedWords: [action.word, ...state.savedWords],
-    };
-  }
-  if (action.type === 'toggle-command-palette') {
-    return {
-      ...state,
-      showCommandPalette: !state.showCommandPalette,
-      commandQuery: '',
-      commandIndex: 0,
-    };
-  }
-  if (action.type === 'set-command-query') {
-    return {
-      ...state,
-      commandQuery: action.query,
-      commandIndex: 0,
-    };
-  }
-  if (action.type === 'set-command-index') {
-    return { ...state, commandIndex: action.index };
-  }
-  if (action.type === 'add-toast') {
-    return { ...state, toasts: withToast(state, action.toast) };
-  }
-  if (action.type === 'dismiss-toast') {
-    return {
-      ...state,
-      toasts: state.toasts.filter((toast) => toast.id !== action.toastId),
-    };
-  }
-  if (action.type === 'prune-toasts') {
-    return {
-      ...state,
-      toasts: state.toasts.filter(
-        (toast) => action.nowMs - toast.timestamp < toast.durationMs
-      ),
-    };
-  }
-  return state;
+export function setViewport(
+  state: TuiState,
+  cols: number,
+  rows: number
+): TuiState {
+  return {
+    ...state,
+    viewportCols: clampInt(cols, 40, 300),
+    viewportRows: clampInt(rows, 18, 200),
+  };
+}
+
+export function setStatus(
+  state: TuiState,
+  status: TuiMiningStatus,
+  message = state.statusMessage
+): TuiState {
+  return {
+    ...state,
+    status,
+    statusMessage: message,
+    errorMessage: status === 'error' ? state.errorMessage : null,
+  };
+}
+
+export function setError(state: TuiState, message: string): TuiState {
+  return {
+    ...state,
+    status: 'error',
+    statusMessage: 'Action failed.',
+    errorMessage: message,
+  };
+}
+
+export function setCandidates(
+  state: TuiState,
+  candidates: readonly MiningCandidate[]
+): TuiState {
+  return {
+    ...state,
+    candidates,
+    selectedCandidateId: candidates[0]?.id ?? null,
+    showDetails: false,
+    status: 'idle',
+    statusMessage: candidates.length
+      ? 'Review the word meaning, then add or skip it.'
+      : 'No meaning found. Try adding a context sentence.',
+    errorMessage: null,
+  };
+}
+
+export function selectCandidate(
+  state: TuiState,
+  candidateId: string | null
+): TuiState {
+  return { ...state, selectedCandidateId: candidateId };
+}
+
+export function markCandidate(
+  state: TuiState,
+  candidateId: string,
+  status: MiningCandidateStatus
+): TuiState {
+  return {
+    ...state,
+    candidates: state.candidates.map((candidate) =>
+      candidate.id === candidateId ? { ...candidate, status } : candidate
+    ),
+  };
+}
+
+export function toggleCandidateInbox(
+  state: TuiState,
+  candidateId: string
+): TuiState {
+  return {
+    ...state,
+    candidates: state.candidates.map((candidate) =>
+      candidate.id === candidateId
+        ? {
+            ...candidate,
+            status: candidate.status === 'skipped' ? 'pending' : 'skipped',
+          }
+        : candidate
+    ),
+  };
+}
+
+export function addSavedWord(state: TuiState, word: SavedWord): TuiState {
+  return {
+    ...state,
+    savedWords: [word, ...state.savedWords],
+  };
+}
+
+export function addToast(state: TuiState, toast: TuiToast): TuiState {
+  return { ...state, toasts: withToast(state, toast) };
+}
+
+export function pruneToasts(state: TuiState, nowMs: number): TuiState {
+  return {
+    ...state,
+    toasts: state.toasts.filter(
+      (toast) => nowMs - toast.timestamp < toast.durationMs
+    ),
+  };
+}
+
+export function clearMine(state: TuiState): TuiState {
+  return {
+    ...state,
+    contextText: '',
+    wordText: '',
+    candidates: [],
+    selectedCandidateId: null,
+    showDetails: false,
+    status: 'idle',
+    statusMessage: 'Paste a word, optionally add context, then analyze.',
+    errorMessage: null,
+  };
 }

@@ -1,10 +1,4 @@
-import type { WakaruConfig } from '@/core/types.js';
-import type {
-  MiningCandidate,
-  WakaruAction,
-  WakaruRouteId,
-  WakaruState,
-} from './types.js';
+import type { MiningCandidate, TuiCommandContext } from './types.js';
 
 import { execFileSync } from 'node:child_process';
 import { analyzeWithOllama } from '@/core/llm.js';
@@ -13,6 +7,21 @@ import {
   saveWord,
   writeAnkiImport,
 } from '@/core/storage.js';
+import {
+  addSavedWord,
+  addToast,
+  clearMine as clearMineState,
+  createToast,
+  markCandidate,
+  pruneToasts,
+  selectCandidate,
+  selectedCandidate,
+  setCandidates,
+  setError,
+  setStatus,
+  setViewport,
+  toggleCandidateInbox,
+} from './state.js';
 
 const CLIPBOARD_COMMANDS: readonly Readonly<{
   command: string;
@@ -27,60 +36,6 @@ const CLIPBOARD_COMMANDS: readonly Readonly<{
     args: ['-NoProfile', '-Command', 'Get-Clipboard'],
   },
 ];
-
-export type WakaruActions = Readonly<{
-  analyzeInput: () => Promise<void>;
-  analyzeCustomWord: () => Promise<void>;
-  addSelected: () => Promise<void>;
-  skipSelected: () => void;
-  clearMine: () => void;
-  pasteClipboard: () => void;
-  exportAnki: () => Promise<void>;
-  navigate: (routeId: WakaruRouteId) => void;
-  stop: () => Promise<void>;
-}>;
-
-type ActionDeps = Readonly<{
-  config: WakaruConfig;
-  getState: () => WakaruState;
-  dispatch: (action: WakaruAction) => void;
-  navigate: (routeId: WakaruRouteId) => void;
-  stop: () => Promise<void>;
-}>;
-
-function toast(
-  message: string,
-  level: 'info' | 'success' | 'warning' | 'error' = 'info'
-): WakaruAction {
-  return {
-    type: 'add-toast',
-    toast: {
-      id: `toast-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      message,
-      level,
-      timestamp: Date.now(),
-      durationMs: 3200,
-    },
-  };
-}
-
-function selectedCandidate(state: WakaruState): MiningCandidate | null {
-  return (
-    state.candidates.find(
-      (candidate) => candidate.id === state.selectedCandidateId
-    ) ?? null
-  );
-}
-
-function effectiveInputMode(state: WakaruState): 'word' | 'sentence' {
-  if (state.inputMode === 'word' || state.inputMode === 'sentence') {
-    return state.inputMode;
-  }
-  return state.inputText.trim().length >
-    state.config.analysis.sentenceModeThreshold
-    ? 'sentence'
-    : 'word';
-}
 
 function readClipboard(): string | null {
   for (const { command, args } of CLIPBOARD_COMMANDS) {
@@ -97,164 +52,228 @@ function readClipboard(): string | null {
   return null;
 }
 
-export function createWakaruActions(deps: ActionDeps): WakaruActions {
-  const { config, dispatch, getState } = deps;
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
-  return {
-    async analyzeInput(): Promise<void> {
-      const state = getState();
-      const text = state.inputText.trim();
-      if (!text || state.status === 'analyzing' || state.status === 'saving') {
-        return;
-      }
+function selectedIndex(
+  candidates: readonly MiningCandidate[],
+  id: string | null
+): number {
+  return candidates.findIndex((candidate) => candidate.id === id);
+}
 
-      const mode = effectiveInputMode(state);
-      dispatch({
-        type: 'set-status',
-        status: 'analyzing',
-        message:
-          mode === 'sentence'
-            ? 'Tokenizing sentence with Ollama...'
-            : 'Analyzing word input with Ollama...',
-      });
+export async function quit(ctx: TuiCommandContext): Promise<void> {
+  await ctx.stop();
+}
 
-      try {
-        const candidates = await analyzeWithOllama(config, text, {
-          mode,
-          contextText: state.contextText,
-        });
-        dispatch({ type: 'set-candidates', candidates });
-        dispatch(
-          toast(
-            `Found ${candidates.length} candidate${candidates.length === 1 ? '' : 's'}.`,
-            'success'
-          )
-        );
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        dispatch({ type: 'set-error', message });
-        dispatch(toast(message, 'error'));
-      }
-    },
+export function tick(ctx: TuiCommandContext): void {
+  ctx.setState((state) => ({ ...state, nowMs: Date.now() }));
+}
 
-    async analyzeCustomWord(): Promise<void> {
-      const state = getState();
-      const word = state.wordText.trim();
-      const context = state.contextText.trim() || state.inputText.trim();
-      if (!word || state.status === 'analyzing' || state.status === 'saving') {
-        return;
-      }
+export function pruneExpiredToasts(ctx: TuiCommandContext): void {
+  ctx.setState((state) => pruneToasts(state, Date.now()));
+}
 
-      dispatch({
-        type: 'set-status',
-        status: 'analyzing',
-        message: 'Analyzing selected word with context...',
-      });
+export function resizeViewport(
+  ctx: TuiCommandContext,
+  cols: number,
+  rows: number
+): void {
+  ctx.setState((state) => setViewport(state, cols, rows));
+}
 
-      try {
-        const candidates = await analyzeWithOllama(config, word, {
-          mode: 'word',
-          contextText: context,
-        });
-        dispatch({ type: 'set-candidates', candidates });
-        dispatch(
-          toast(
-            `Found ${candidates.length} candidate${candidates.length === 1 ? '' : 's'}.`,
-            'success'
-          )
-        );
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        dispatch({ type: 'set-error', message });
-        dispatch(toast(message, 'error'));
-      }
-    },
+export function syncMineInputs(
+  ctx: TuiCommandContext,
+  input: Readonly<{ wordText: string; contextText: string }>
+): void {
+  ctx.setState((state) => ({
+    ...state,
+    wordText: input.wordText,
+    contextText: input.contextText,
+  }));
+}
 
-    async addSelected(): Promise<void> {
-      const state = getState();
-      const candidate = selectedCandidate(state);
-      if (
-        !candidate ||
-        candidate.status === 'added' ||
-        candidate.status === 'skipped' ||
-        state.status === 'saving'
-      ) {
-        return;
-      }
+export function toggleCommandPalette(ctx: TuiCommandContext): void {
+  ctx.setState((state) => ({
+    ...state,
+    showCommandPalette: !state.showCommandPalette,
+    commandQuery: '',
+    commandIndex: 0,
+  }));
+}
 
-      dispatch({
-        type: 'set-status',
-        status: 'saving',
-        message: `Saving ${candidate.expression}...`,
-      });
+export async function analyzeWord(ctx: TuiCommandContext): Promise<void> {
+  ctx.syncInputs();
+  const state = ctx.getState();
+  const word = state.wordText.trim();
+  const contextText = state.contextText.trim();
+  if (!word || state.status === 'analyzing' || state.status === 'saving') {
+    return;
+  }
 
-      try {
-        const word = candidateToSavedWord(
-          candidate,
-          state.contextText.trim() || state.inputText.trim()
-        );
-        await saveWord(config, word);
-        dispatch({ type: 'add-saved-word', word });
-        dispatch({
-          type: 'mark-candidate',
-          candidateId: candidate.id,
-          status: 'added',
-        });
-        dispatch({
-          type: 'set-status',
-          status: 'idle',
-          message: `${candidate.expression} saved to Anki import file.`,
-        });
-        dispatch(toast(`Saved ${candidate.expression}.`, 'success'));
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        dispatch({ type: 'set-error', message });
-        dispatch(toast(message, 'error'));
-      }
-    },
+  ctx.setState((current) =>
+    setStatus(current, 'analyzing', 'Analyzing word with Ollama...')
+  );
 
-    skipSelected(): void {
-      const candidate = selectedCandidate(getState());
-      if (!candidate || candidate.status === 'added') return;
-      dispatch({
-        type: 'toggle-candidate-inbox',
-        candidateId: candidate.id,
-      });
-      dispatch(
-        toast(
-          candidate.status === 'skipped'
-            ? `${candidate.expression} back in inbox.`
-            : `${candidate.expression} removed from inbox.`,
-          candidate.status === 'skipped' ? 'info' : 'warning'
+  try {
+    const candidates = await analyzeWithOllama(state.config, word, {
+      contextText,
+    });
+    ctx.setState((current) =>
+      addToast(
+        setCandidates(current, candidates),
+        createToast(
+          `Found ${candidates.length} meaning${candidates.length === 1 ? '' : 's'}.`,
+          'success'
         )
-      );
-    },
+      )
+    );
+  } catch (error) {
+    const message = errorMessage(error);
+    ctx.setState((current) =>
+      addToast(setError(current, message), createToast(message, 'error'))
+    );
+  }
+}
 
-    clearMine(): void {
-      dispatch({ type: 'clear-mine' });
-    },
+export async function addSelectedCandidate(
+  ctx: TuiCommandContext
+): Promise<void> {
+  const state = ctx.getState();
+  const candidate = selectedCandidate(state);
+  if (
+    !candidate ||
+    candidate.status === 'added' ||
+    candidate.status === 'skipped' ||
+    state.status === 'saving'
+  ) {
+    return;
+  }
 
-    pasteClipboard(): void {
-      const text = readClipboard();
-      if (!text) {
-        dispatch(toast('Clipboard is unavailable.', 'warning'));
-        return;
-      }
-      dispatch({ type: 'append-input', text });
-    },
+  ctx.setState((current) =>
+    setStatus(current, 'saving', `Saving ${candidate.expression}...`)
+  );
 
-    async exportAnki(): Promise<void> {
-      try {
-        const path = await writeAnkiImport(config, getState().savedWords);
-        dispatch(toast(`Wrote ${path}.`, 'success'));
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        dispatch({ type: 'set-error', message });
-        dispatch(toast(message, 'error'));
-      }
-    },
+  try {
+    const sourceText = state.contextText.trim() || state.wordText.trim();
+    const word = candidateToSavedWord(candidate, sourceText);
+    await saveWord(state.config, word);
+    ctx.setState((current) =>
+      addToast(
+        setStatus(
+          markCandidate(addSavedWord(current, word), candidate.id, 'added'),
+          'idle',
+          `${candidate.expression} saved to Anki import file.`
+        ),
+        createToast(`Saved ${candidate.expression}.`, 'success')
+      )
+    );
+  } catch (error) {
+    const message = errorMessage(error);
+    ctx.setState((current) =>
+      addToast(setError(current, message), createToast(message, 'error'))
+    );
+  }
+}
 
-    navigate: deps.navigate,
-    stop: deps.stop,
-  };
+export function skipSelectedCandidate(ctx: TuiCommandContext): void {
+  const candidate = selectedCandidate(ctx.getState());
+  if (!candidate || candidate.status === 'added') return;
+
+  ctx.setState((current) =>
+    addToast(
+      toggleCandidateInbox(current, candidate.id),
+      createToast(
+        candidate.status === 'skipped'
+          ? `${candidate.expression} back in inbox.`
+          : `${candidate.expression} removed from inbox.`,
+        candidate.status === 'skipped' ? 'info' : 'warning'
+      )
+    )
+  );
+}
+
+export function clearMine(ctx: TuiCommandContext): void {
+  ctx.setState(clearMineState);
+}
+
+export function pasteClipboard(ctx: TuiCommandContext): void {
+  const text = readClipboard();
+  if (!text) {
+    ctx.setState((state) =>
+      addToast(state, createToast('Clipboard is unavailable.', 'warning'))
+    );
+    return;
+  }
+
+  ctx.setState((state) => ({
+    ...state,
+    wordText: text,
+  }));
+}
+
+export async function exportAnki(ctx: TuiCommandContext): Promise<void> {
+  const state = ctx.getState();
+  try {
+    const path = await writeAnkiImport(state.config, state.savedWords);
+    ctx.setState((current) =>
+      addToast(current, createToast(`Wrote ${path}.`, 'success'))
+    );
+  } catch (error) {
+    const message = errorMessage(error);
+    ctx.setState((current) =>
+      addToast(setError(current, message), createToast(message, 'error'))
+    );
+  }
+}
+
+export function navigateMine(ctx: TuiCommandContext): void {
+  ctx.navigate('mine');
+}
+
+export function navigateLibrary(ctx: TuiCommandContext): void {
+  ctx.navigate('library');
+}
+
+export function navigateSettings(ctx: TuiCommandContext): void {
+  ctx.navigate('settings');
+}
+
+export function navigateNext(ctx: TuiCommandContext): void {
+  ctx.navigateOffset(1);
+}
+
+export function navigatePrevious(ctx: TuiCommandContext): void {
+  ctx.navigateOffset(-1);
+}
+
+export function selectPreviousCandidate(ctx: TuiCommandContext): void {
+  selectCandidateOffset(ctx, -1);
+}
+
+export function selectNextCandidate(ctx: TuiCommandContext): void {
+  selectCandidateOffset(ctx, 1);
+}
+
+export function selectCandidateOffset(
+  ctx: TuiCommandContext,
+  offset: 1 | -1
+): void {
+  const state = ctx.getState();
+  if (!state.candidates.length) return;
+  const index = selectedIndex(state.candidates, state.selectedCandidateId);
+  const safeIndex = index < 0 ? 0 : index;
+  const next =
+    state.candidates[
+      (safeIndex + offset + state.candidates.length) % state.candidates.length
+    ];
+  ctx.setState((current) => selectCandidate(current, next?.id ?? null));
+}
+
+export function toggleDetails(ctx: TuiCommandContext): void {
+  ctx.setState((state) => ({
+    ...state,
+    showDetails: !state.showDetails,
+  }));
 }

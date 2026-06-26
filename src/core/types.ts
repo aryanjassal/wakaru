@@ -2,8 +2,6 @@ export type ThemeName = 'night';
 
 export type MiningCandidateStatus = 'pending' | 'added' | 'skipped';
 
-export type AnalysisInputMode = 'auto' | 'word' | 'sentence';
-
 export type AnkiFieldConfig = Readonly<{
   name: string;
   purpose: string;
@@ -48,8 +46,5 @@ export type WakaruConfig = Readonly<{
   }>;
   anki: Readonly<{
     fields: readonly AnkiFieldConfig[];
-  }>;
-  analysis: Readonly<{
-    sentenceModeThreshold: number;
   }>;
 }>;

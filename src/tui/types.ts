@@ -1,13 +1,6 @@
-import type {
-  AnalysisInputMode,
-  MiningCandidate,
-  MiningCandidateStatus,
-  SavedWord,
-  WakaruConfig,
-} from '@/core/types.js';
+import type { MiningCandidate, SavedWord, WakaruConfig } from '@/core/types.js';
 
 export type {
-  AnalysisInputMode,
   AnkiFieldConfig,
   AnkiFieldValues,
   MiningCandidate,
@@ -16,9 +9,9 @@ export type {
   WakaruConfig,
 } from '@/core/types.js';
 
-export type MiningStatus = 'idle' | 'analyzing' | 'saving' | 'error';
+export type TuiMiningStatus = 'idle' | 'analyzing' | 'saving' | 'error';
 
-export type WakaruToast = Readonly<{
+export type TuiToast = Readonly<{
   id: string;
   message: string;
   level: 'info' | 'success' | 'warning' | 'error';
@@ -26,17 +19,15 @@ export type WakaruToast = Readonly<{
   durationMs: number;
 }>;
 
-export type WakaruState = Readonly<{
+export type TuiState = Readonly<{
   nowMs: number;
   viewportCols: number;
   viewportRows: number;
   config: WakaruConfig;
-  inputText: string;
   contextText: string;
   wordText: string;
-  inputMode: AnalysisInputMode;
   showDetails: boolean;
-  status: MiningStatus;
+  status: TuiMiningStatus;
   statusMessage: string;
   errorMessage: string | null;
   candidates: readonly MiningCandidate[];
@@ -45,50 +36,22 @@ export type WakaruState = Readonly<{
   showCommandPalette: boolean;
   commandQuery: string;
   commandIndex: number;
-  toasts: readonly WakaruToast[];
+  toasts: readonly TuiToast[];
 }>;
 
-export type WakaruAction =
-  | Readonly<{ type: 'tick'; nowMs: number }>
-  | Readonly<{ type: 'set-viewport'; cols: number; rows: number }>
-  | Readonly<{ type: 'set-input'; text: string }>
-  | Readonly<{ type: 'append-input'; text: string }>
-  | Readonly<{ type: 'set-context'; text: string }>
-  | Readonly<{ type: 'set-custom-word'; text: string }>
-  | Readonly<{ type: 'set-input-mode'; mode: AnalysisInputMode }>
-  | Readonly<{ type: 'toggle-details' }>
-  | Readonly<{ type: 'clear-mine' }>
-  | Readonly<{ type: 'set-status'; status: MiningStatus; message?: string }>
-  | Readonly<{ type: 'set-error'; message: string }>
-  | Readonly<{ type: 'set-candidates'; candidates: readonly MiningCandidate[] }>
-  | Readonly<{ type: 'select-candidate'; candidateId: string | null }>
-  | Readonly<{
-      type: 'mark-candidate';
-      candidateId: string;
-      status: MiningCandidateStatus;
-    }>
-  | Readonly<{ type: 'toggle-candidate-inbox'; candidateId: string }>
-  | Readonly<{ type: 'set-saved-words'; words: readonly SavedWord[] }>
-  | Readonly<{ type: 'add-saved-word'; word: SavedWord }>
-  | Readonly<{ type: 'toggle-command-palette' }>
-  | Readonly<{ type: 'set-command-query'; query: string }>
-  | Readonly<{ type: 'set-command-index'; index: number }>
-  | Readonly<{ type: 'add-toast'; toast: WakaruToast }>
-  | Readonly<{ type: 'dismiss-toast'; toastId: string }>
-  | Readonly<{ type: 'prune-toasts'; nowMs: number }>;
+export type TuiRouteId = 'mine' | 'library' | 'settings';
 
-export type WakaruRouteId = 'mine' | 'library' | 'settings';
+export type TuiStateUpdater = (update: (state: TuiState) => TuiState) => void;
 
-export type WakaruRouteDeps = Readonly<{
-  dispatch: (action: WakaruAction) => void;
-  analyzeInput: () => void;
-  analyzeCustomWord: () => void;
-  addSelected: () => void;
-  skipSelected: () => void;
-  clearMine: () => void;
-  pasteClipboard: () => void;
-  exportAnki: () => void;
-  navigate: (routeId: WakaruRouteId) => void;
-  routes: readonly Readonly<{ id: WakaruRouteId; title: string }>[];
-  stop: () => void;
+export type TuiCommandRunner = (commandId: string) => Promise<boolean>;
+
+export type TuiCommandContext = Readonly<{
+  getState: () => TuiState;
+  setState: TuiStateUpdater;
+  syncInputs: () => void;
+  navigate: (routeId: TuiRouteId) => void;
+  getRoute: () => TuiRouteId;
+  navigateOffset: (offset: 1 | -1) => void;
+  stop: () => Promise<void>;
+  runCommand: TuiCommandRunner;
 }>;

@@ -1,7 +1,10 @@
 import { describe, it, expect } from '@jest/globals';
 import {
-  createInitialWakaruState,
-  reduceWakaruState,
+  addToast,
+  createInitialTuiState,
+  markCandidate,
+  pruneToasts,
+  setCandidates,
 } from '../src/tui/state.js';
 import { getTestConfig, createTestCandidate } from './config.js';
 
@@ -34,7 +37,7 @@ describe('State', () => {
   });
 
   it('initial state uses config theme and empty mining queues', () => {
-    const state = createInitialWakaruState(config, 1_000, {
+    const state = createInitialTuiState(config, 1_000, {
       cols: 100,
       rows: 32,
     });
@@ -46,16 +49,9 @@ describe('State', () => {
   });
 
   it('candidate selection and marking are immutable', () => {
-    const initial = createInitialWakaruState(config);
-    const withCandidates = reduceWakaruState(initial, {
-      type: 'set-candidates',
-      candidates: [candidate],
-    });
-    const marked = reduceWakaruState(withCandidates, {
-      type: 'mark-candidate',
-      candidateId: candidate.id,
-      status: 'added',
-    });
+    const initial = createInitialTuiState(config);
+    const withCandidates = setCandidates(initial, [candidate]);
+    const marked = markCandidate(withCandidates, candidate.id, 'added');
 
     expect(withCandidates.selectedCandidateId).toBe(candidate.id);
     expect(withCandidates.candidates[0]?.status).toBe('pending');
@@ -63,21 +59,15 @@ describe('State', () => {
   });
 
   it('toasts can be pruned by duration', () => {
-    const initial = createInitialWakaruState(config, 0);
-    const withToast = reduceWakaruState(initial, {
-      type: 'add-toast',
-      toast: {
-        id: 'toast-1',
-        message: 'Saved',
-        level: 'success',
-        timestamp: 0,
-        durationMs: 100,
-      },
+    const initial = createInitialTuiState(config, 0);
+    const withToast = addToast(initial, {
+      id: 'toast-1',
+      message: 'Saved',
+      level: 'success',
+      timestamp: 0,
+      durationMs: 100,
     });
-    const pruned = reduceWakaruState(withToast, {
-      type: 'prune-toasts',
-      nowMs: 200,
-    });
+    const pruned = pruneToasts(withToast, 200);
 
     expect(withToast.toasts.length).toBe(1);
     expect(pruned.toasts.length).toBe(0);

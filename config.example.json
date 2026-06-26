@@ -26,8 +26,5 @@
         "purpose": "Space-separated Anki tags. Include wakaru, part of speech, and concise topic tags."
       }
     ]
-  },
-  "analysis": {
-    "sentenceModeThreshold": 80
   }
 }

@@ -1,9 +1,5 @@
 import type { z } from 'zod';
-import type {
-  AnalysisInputMode,
-  MiningCandidate,
-  WakaruConfig,
-} from './types.js';
+import type { MiningCandidate, WakaruConfig } from './types.js';
 
 import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -111,7 +107,7 @@ function serialiseError(error: unknown): Record<string, unknown> {
 
 async function logOllamaFailure(
   config: WakaruConfig,
-  inputText: string,
+  wordText: string,
   options: AnalyzeInputOptions,
   responseText: string,
   error: unknown
@@ -121,8 +117,7 @@ async function logOllamaFailure(
     timestamp: new Date().toISOString(),
     model: config.llm.model,
     apiBase: config.llm.apiBase,
-    mode: options.mode,
-    inputText,
+    wordText,
     contextText: options.contextText ?? '',
     responseText,
     error: serialiseError(error),
@@ -135,67 +130,27 @@ async function logOllamaFailure(
   }
 }
 
-function splitInput(inputText: string, maxChars: number): readonly string[] {
-  const normalized = inputText.trim();
-  if (!normalized) return [];
-  if (normalized.length <= maxChars) return [normalized];
-
-  const chunks: string[] = [];
-  let current = '';
-  for (const block of normalized.split(/\n{2,}/)) {
-    const trimmed = block.trim();
-    if (!trimmed) continue;
-
-    if (trimmed.length > maxChars) {
-      if (current) {
-        chunks.push(current);
-        current = '';
-      }
-      for (let index = 0; index < trimmed.length; index += maxChars) {
-        chunks.push(trimmed.slice(index, index + maxChars));
-      }
-      continue;
-    }
-
-    const next = current ? `${current}\n\n${trimmed}` : trimmed;
-    if (next.length > maxChars) {
-      chunks.push(current);
-      current = trimmed;
-    } else {
-      current = next;
-    }
-  }
-
-  if (current) chunks.push(current);
-  return chunks;
-}
-
 export type AnalyzeInputOptions = Readonly<{
-  mode: Exclude<AnalysisInputMode, 'auto'>;
   contextText?: string;
 }>;
 
 function promptFor(
   config: WakaruConfig,
-  inputText: string,
+  wordText: string,
   options: AnalyzeInputOptions
 ): string {
   const ankiFields = config.anki.fields
     .map((field) => `- ${field.name}: ${field.purpose}`)
     .join('\n');
   const context = options.contextText?.trim();
-  const task =
-    options.mode === 'sentence'
-      ? 'Tokenize/extract useful vocabulary from the input sentence or passage. Treat each candidate as a clickable word the learner may save.'
-      : 'Analyze the pasted word or word list. Use the optional context sentence only to choose the correct sense and card content.';
 
   return `You are helping a Japanese learner mine words for Anki.
 
 Task:
-${task}
+Analyze the pasted Japanese word or phrase. Return the likely meanings for this exact word. If the meaning is ambiguous and a context sentence is provided, use that context to choose the correct sense and card content. If no context is provided and the word is ambiguous, include the uncertainty in the meaning or nuance fields.
 
-Input ${options.mode === 'sentence' ? 'sentence or passage' : 'word or word list'}:
-${inputText}
+Word or phrase:
+${wordText}
 
 ${context ? `Context sentence:\n${context}\n` : ''}
 Anki note fields to populate:
@@ -221,12 +176,12 @@ Return only valid JSON with this exact shape:
   ]
 }
 
-Choose useful unknown vocabulary and fixed expressions. Prefer 3 to 8 candidates in sentence mode. In word mode, return one candidate per pasted word. Populate every configured Anki field name exactly as listed. Do not include explanations outside JSON.`;
+Return one to three candidates only when the word genuinely has multiple likely meanings. Populate every configured Anki field name exactly as listed. Do not tokenize the context sentence. Do not discover extra vocabulary from raw text. Do not include explanations outside JSON.`;
 }
 
 async function analyzeChunk(
   config: WakaruConfig,
-  inputText: string,
+  wordText: string,
   options: AnalyzeInputOptions
 ): Promise<readonly MiningCandidate[]> {
   const response = await fetch(`${config.llm.apiBase}/api/generate`, {
@@ -234,7 +189,7 @@ async function analyzeChunk(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       model: config.llm.model,
-      prompt: promptFor(config, inputText, options),
+      prompt: promptFor(config, wordText, options),
       stream: false,
       think: false,
       format: 'json',
@@ -252,7 +207,7 @@ async function analyzeChunk(
   if (!responseJson.success) {
     await logOllamaFailure(
       config,
-      inputText,
+      wordText,
       options,
       responseText,
       responseJson.error
@@ -268,7 +223,7 @@ async function analyzeChunk(
       'Ollama generate response'
     );
   } catch (error) {
-    await logOllamaFailure(config, inputText, options, responseText, error);
+    await logOllamaFailure(config, wordText, options, responseText, error);
     throw error;
   }
   if (payload.error) throw new Error(payload.error);
@@ -276,20 +231,17 @@ async function analyzeChunk(
   try {
     return extractJson(payload.response);
   } catch (error) {
-    await logOllamaFailure(config, inputText, options, payload.response, error);
+    await logOllamaFailure(config, wordText, options, payload.response, error);
     throw error;
   }
 }
 
 export async function analyzeWithOllama(
   config: WakaruConfig,
-  inputText: string,
-  options: AnalyzeInputOptions = { mode: 'sentence' }
+  wordText: string,
+  options: AnalyzeInputOptions = {}
 ): Promise<readonly MiningCandidate[]> {
-  const chunks = splitInput(inputText, config.llm.maxInputChars);
-  const candidates: MiningCandidate[] = [];
-  for (const chunk of chunks) {
-    candidates.push(...(await analyzeChunk(config, chunk, options)));
-  }
-  return candidates;
+  const word = wordText.trim();
+  if (!word) return [];
+  return analyzeChunk(config, word, options);
 }

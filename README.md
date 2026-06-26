@@ -1,17 +1,17 @@
 # Wakaru
 
-Wakaru is an OpenTUI-based TUI for Japanese sentence and word mining. Paste a
-sentence, paragraph, or short list of words, ask a local Ollama model to explain
-useful candidates in context, then choose which cards to add to an Anki import
-file.
+Wakaru is an OpenTUI-based TUI for Japanese word mining. Paste a word or phrase,
+optionally add a context sentence, ask a local Ollama model to explain the
+meaning, then choose which card to add to an Anki import file.
 
 ## Workflow
 
-1. Paste Japanese text into the Mine screen.
-2. Run analysis with `ctrl+a`.
-3. Review the model's candidates and context-specific meanings.
-4. Press `enter` to add the selected candidate or `x` to skip it.
-5. Import `anki-import.tsv` from the configured words directory into Anki.
+1. Paste a Japanese word or phrase into the Mine screen.
+2. Optionally add a context sentence.
+3. Run analysis with `ctrl+a`.
+4. Review the model's meanings.
+5. Press `enter` to add the selected word or `x` to skip it.
+6. Import `anki-import.tsv` from the configured words directory into Anki.
 
 Saved words are stored as JSON and the Anki TSV is regenerated whenever a word
 is added.
@@ -71,13 +71,11 @@ Invalid Ollama candidate responses are appended to
 | `left/right`  | Previous/next screen |
 | `tab`         | Next input field     |
 | `shift+tab`   | Previous input field |
-| `ctrl+a`      | Analyze pasted text  |
-| `ctrl+w`      | Analyze custom word  |
+| `ctrl+a`      | Analyze word         |
 | `enter`       | Add selected word    |
 | `up/down`     | Select candidate     |
 | `x`           | Skip selected word   |
 | `c`           | Clear Mine screen    |
-| `space`       | Paste clipboard      |
 | `d`           | Toggle details       |
 | `ctrl+e`      | Rewrite Anki TSV     |
 

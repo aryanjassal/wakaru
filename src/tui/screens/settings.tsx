@@ -1,9 +1,9 @@
-import type { WakaruState } from '../types.js';
+import type { TuiState } from '../types.js';
 
 import { colorscheme } from '../theme.js';
 
 type SettingsScreenProps = Readonly<{
-  state: WakaruState;
+  state: TuiState;
 }>;
 
 export function SettingsScreen({ state }: SettingsScreenProps) {

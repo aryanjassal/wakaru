@@ -2,8 +2,8 @@ import { createCliRenderer } from '@opentui/core';
 import { createRoot } from '@opentui/react';
 import { loadConfig } from '@/core/config.js';
 import { loadSavedWords } from '@/core/storage.js';
-import { WakaruApp } from './app.js';
-import { createInitialWakaruState } from './state.js';
+import { TuiApp } from './app.js';
+import { createInitialTuiState } from './state.js';
 import { colorscheme } from './theme.js';
 
 const UI_FPS_CAP = 60;
@@ -20,7 +20,7 @@ function clampViewportAxis(
 
 const config = loadConfig();
 const savedWords = await loadSavedWords(config);
-const initialState = createInitialWakaruState(
+const initialState = createInitialTuiState(
   config,
   Date.now(),
   {
@@ -60,7 +60,7 @@ process.once('SIGINT', () => void stopApp(0));
 process.once('SIGTERM', () => void stopApp(0));
 
 createRoot(renderer).render(
-  <WakaruApp initialState={initialState} stop={stopApp} />
+  <TuiApp initialState={initialState} stop={stopApp} />
 );
 
 await stopPromise;
