@@ -4,6 +4,7 @@ export type MineState = Readonly<{
   contextText: string;
   wordText: string;
   showDetails: boolean;
+  showContext: boolean;
   status: TuiMiningStatus;
   statusMessage: string;
   errorMessage: string | null;

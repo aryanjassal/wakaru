@@ -1,11 +1,11 @@
 import type { InputRenderable } from '@opentui/core';
 import type { InputProps as TuiInputProps } from '@opentui/react';
 import type { Ref } from 'react';
-import type { FocusableProps } from './types.js';
+import type { FocusableProps } from '../types.js';
 
 import { useCallback, useRef } from 'react';
-import { useFocusable } from '../focus-context.js';
-import { colorscheme } from '../theme';
+import { useFocusable } from '../../lib/context/focus.js';
+import { colorscheme } from '../../theme.js';
 
 type InputProps = Omit<
   TuiInputProps,

@@ -1,10 +1,15 @@
 import type { ReactNode } from 'react';
-import type { SavedWord, TuiRouteId, TuiToast, WakaruConfig } from './types.js';
+import type {
+  SavedWord,
+  TuiRouteId,
+  TuiToast,
+  WakaruConfig,
+} from '../../types.js';
 import type {
   TuiCommand,
   TuiCommandDisposer,
   TuiCommandId,
-} from './commands.js';
+} from '../../commands.js';
 
 import { createContext, useContext, useEffect, useRef } from 'react';
 

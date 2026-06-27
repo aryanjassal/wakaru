@@ -1,17 +1,15 @@
 import type { InputRenderable, TextareaRenderable } from '@opentui/core';
-import type { MineState } from './types.js';
+import type { MineState } from './types';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button } from '@/tui/components/button.js';
-import { MINE_COMMAND_IDS, useMineCommands } from './commands.js';
+import { MINE_COMMAND_IDS, useMineCommands } from './commands';
 import {
   candidateDetailText,
   candidateRows,
   createInitialMineState,
-} from './utils.js';
-import { colorscheme } from '../../theme.js';
-import { Input } from '@/tui/components/input.js';
-import { Textarea } from '@/tui/components/textarea.js';
+} from './utils';
+import { colorscheme } from '../../theme';
+import { Button, Input, Textarea, Separator } from '../../components';
 
 export function MineScreen() {
   const [state, setState] = useState(createInitialMineState);
@@ -57,11 +55,11 @@ export function MineScreen() {
       title=" Mine "
       titleColor={colorscheme.primary}
     >
-      <text
+      {/* <text
         height={1}
         fg={colorscheme.muted}
         content="Define words and save them for studying later"
-      />
+      /> */}
       <Input
         label="Word"
         ref={wordRef}
@@ -72,31 +70,56 @@ export function MineScreen() {
       <box flexDirection="row" width="100%" columnGap={2}>
         <Button
           label="Paste"
-          commandIdOrAction={MINE_COMMAND_IDS.pasteClipboard}
+          action={(ctx) =>
+            ctx.runCommand(MINE_COMMAND_IDS.pasteClipboardAsWord)
+          }
         />
         <Button
-          label="Analyze"
-          commandIdOrAction={MINE_COMMAND_IDS.analyzeWord}
+          label="Clear"
+          action={(ctx) => ctx.runCommand(MINE_COMMAND_IDS.clearWord)}
         />
-        <Button label="Clear" commandIdOrAction={MINE_COMMAND_IDS.clear} />
       </box>
+      <Separator />
+      {state.showContext && (
+        <>
+          <box rowGap={1}>
+            <Textarea
+              label="Context"
+              ref={contextRef}
+              id="mine-context"
+              height={2}
+              initialValue={state.contextText}
+              placeholder="Optional context sentence"
+              wrapMode="word"
+            />
+            <box flexDirection="row" width="100%" columnGap={2}>
+              <Button
+                label="Paste"
+                action={(ctx) =>
+                  ctx.runCommand(MINE_COMMAND_IDS.pasteClipboardAsContext)
+                }
+              />
+              <Button
+                label="Clear"
+                action={(ctx) => ctx.runCommand(MINE_COMMAND_IDS.clearContext)}
+              />
+            </box>
+          </box>
+          <Separator />
+        </>
+      )}
+      <Button
+        label="Analyze"
+        action={(ctx) => ctx.runCommand(MINE_COMMAND_IDS.analyzeWord)}
+      />
       <text
         height={1}
         fg={state.status === 'error' ? colorscheme.danger : colorscheme.muted}
         content={`${state.status.toUpperCase()} · ${state.statusMessage}`}
       />
-      <Textarea
-        label="Context"
-        ref={contextRef}
-        id="mine-context"
-        height={2}
-        initialValue={state.contextText}
-        placeholder="Optional context sentence"
-        wrapMode="word"
-      />
       <text
         id="candidate-list"
-        flexGrow={1}
+        flexShrink={0}
         width="100%"
         fg={colorscheme.text}
         content={candidateRows(state)}
@@ -105,7 +128,7 @@ export function MineScreen() {
       <text
         id="candidate-detail"
         width="100%"
-        height={10}
+        // height={10}
         fg={colorscheme.muted}
         content={candidateDetailText(state)}
         wrapMode="word"

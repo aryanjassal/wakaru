@@ -1,28 +1,29 @@
 import type { CliRenderer, InputRenderable, KeyEvent } from '@opentui/core';
-import type { TuiRouteId, TuiState } from './types.js';
-import type { TuiCommand, TuiCommandId } from './commands.js';
-import type { TuiToastLevel } from './app-context.js';
+import type { TuiRouteId, TuiState } from './types';
+import type { TuiCommand, TuiCommandId } from './commands';
+import type { TuiToastLevel } from './lib/context/app';
 
 import { TextAttributes } from '@opentui/core';
 import { useKeyboard, useOnResize, useRenderer } from '@opentui/react';
-import type { RefObject } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TuiCommandRegistry } from './commands.js';
-import { TuiAppProvider, useTuiApp, useTuiCommand } from './app-context.js';
-import { FocusProvider, useFocusable } from './focus-context.js';
-import { toastText } from './format.js';
-import { TUI_ROUTES } from './routes.js';
-import { LibraryScreen } from './screens/library.js';
-import { MineScreen } from './screens/mine/screen.js';
-import { SettingsScreen } from './screens/settings.js';
+import { TuiCommandRegistry } from './commands';
+import { TuiAppProvider, useTuiApp, useTuiCommand } from './lib/context/app';
+import { FocusProvider } from './lib/context/focus';
+import { toastText } from './lib/utils';
+import { TUI_ROUTES } from './routes';
+import { LibraryScreen } from './screens/library';
+import { MineScreen } from './screens/mine/screen';
+import { SettingsScreen } from './screens/settings';
 import {
   addSavedWord as addSavedWordToState,
   addToast as addToastToState,
   createToast,
   pruneToasts,
   setViewport,
-} from './state.js';
-import { colorscheme, NAME, TAGLINE } from './theme.js';
+} from './state';
+import { colorscheme, NAME, TAGLINE } from './theme';
+import { Button } from './components/primitives/button';
+import { CommandPalette } from './components/index';
 
 const TICK_MS = 1000;
 const TOAST_PRUNE_MS = 3000;
@@ -114,121 +115,6 @@ function ShellCommands() {
 
 function commandSearchText(command: TuiCommand): string {
   return `${command.title} ${command.id}`.toLowerCase();
-}
-
-function commandPaletteRows(
-  commands: readonly TuiCommand[],
-  selectedIndex: number
-): string {
-  if (!commands.length) return 'No commands found.';
-  return commands
-    .map((command, index) => {
-      const marker = index === selectedIndex ? '>' : ' ';
-      const key = (command.keybindings ?? [])
-        .map((binding) =>
-          [
-            binding.ctrl === true ? 'ctrl' : '',
-            binding.meta === true ? 'meta' : '',
-            binding.shift === true ? 'shift' : '',
-            binding.key,
-          ]
-            .filter(Boolean)
-            .join('+')
-        )
-        .join(', ');
-      return [
-        marker,
-        command.title.padEnd(28, ' '),
-        key ? key.padEnd(12, ' ') : ''.padEnd(12, ' '),
-        command.id,
-      ].join(' ');
-    })
-    .join('\n');
-}
-
-function CommandPalette({
-  commands,
-  inputRef,
-  query,
-  selectedIndex,
-  onQueryChange,
-}: Readonly<{
-  commands: readonly TuiCommand[];
-  inputRef: RefObject<InputRenderable | null>;
-  query: string;
-  selectedIndex: number;
-  onQueryChange: (query: string) => void;
-}>) {
-  useFocusable({
-    id: 'command-palette-input',
-    ref: inputRef,
-    scope: 'command-palette',
-  });
-
-  return (
-    <box
-      id="command-palette-overlay"
-      position="absolute"
-      left={0}
-      right={0}
-      top={0}
-      bottom={0}
-      zIndex={100}
-      width="100%"
-      height="100%"
-      justifyContent="center"
-      alignItems="center"
-    >
-      <box
-        id="command-palette"
-        width={76}
-        height={17}
-        flexDirection="column"
-        rowGap={1}
-        border
-        borderStyle="single"
-        borderColor={colorscheme.primary}
-        backgroundColor={colorscheme.bg}
-        padding={1}
-        title=" Commands "
-        titleColor={colorscheme.primary}
-      >
-        <input
-          ref={inputRef}
-          id="command-palette-input"
-          width="100%"
-          value={query}
-          placeholder="Search commands"
-          backgroundColor={colorscheme.bgDark}
-          focusedBackgroundColor={colorscheme.bgSecondary}
-          textColor={colorscheme.text}
-          cursorColor={colorscheme.primary}
-          onContentChange={() => {
-            onQueryChange(inputRef.current?.value ?? '');
-          }}
-        />
-        <scrollbox
-          id="command-palette-scroll"
-          width="100%"
-          height={11}
-          scrollY
-          scrollX={false}
-          border
-          borderStyle="single"
-          borderColor={colorscheme.gutter}
-          backgroundColor={colorscheme.bgDark}
-          paddingX={1}
-        >
-          <text
-            id="command-palette-list"
-            height={Math.max(1, commands.length)}
-            fg={colorscheme.text}
-            content={commandPaletteRows(commands, selectedIndex)}
-          />
-        </scrollbox>
-      </box>
-    </box>
-  );
 }
 
 function CurrentRoute() {
@@ -337,6 +223,14 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
   }, [commandQuery, commands]);
 
   const selectedCommand = visibleCommands[commandIndex] ?? null;
+
+  const runPaletteCommand = useCallback(
+    (commandId: TuiCommandId): void => {
+      setShowCommandPalette(false);
+      void runCommand(commandId);
+    },
+    [runCommand]
+  );
 
   const appContext = useMemo(
     () => ({
@@ -447,8 +341,7 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
       if (key.name === 'return') {
         key.preventDefault();
         if (!selectedCommand) return;
-        setShowCommandPalette(false);
-        void runCommand(selectedCommand.id);
+        runPaletteCommand(selectedCommand.id);
         return;
       }
     }
@@ -523,7 +416,7 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
               flexDirection="row"
             >
               {TUI_ROUTES.map((route) => (
-                <text
+                <Button
                   key={route.id}
                   id={`wakaru-menu-${route.id}`}
                   height={1}
@@ -533,9 +426,9 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
                       ? colorscheme.primary
                       : colorscheme.bgHighlight
                   }
-                  content={` ${route.title} `}
+                  label={route.title}
                   attributes={TextAttributes.BOLD}
-                  onMouseDown={() => navigate(route.id)}
+                  action={() => navigate(route.id)}
                 />
               ))}
             </box>
@@ -553,7 +446,9 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
               inputRef={commandPaletteInputRef}
               query={commandQuery}
               selectedIndex={commandIndex}
+              onCommandRun={runPaletteCommand}
               onQueryChange={setCommandQuery}
+              onSelectedIndexChange={setCommandIndex}
             />
           ) : null}
           <CurrentRoute />

@@ -1,4 +1,4 @@
-import { useTuiApp } from '../app-context.js';
+import { useTuiApp } from '../lib/context/app.js';
 import { colorscheme } from '../theme.js';
 
 export function SettingsScreen() {

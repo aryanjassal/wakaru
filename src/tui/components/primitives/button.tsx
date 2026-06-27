@@ -1,14 +1,14 @@
 import type { TextRenderable } from '@opentui/core';
 import type { TextProps } from '@opentui/react';
-import type { TuiCommandId } from '../commands';
-import type { FocusableProps } from './types.js';
+import type { TuiAppContextValue } from '../../lib/context/app.js';
+import type { FocusableProps } from '../types.js';
 
 import { TextAttributes } from '@opentui/core';
 import { useBlur } from '@opentui/react';
 import { useCallback, useId, useRef, useState } from 'react';
-import { useTuiApp } from '../app-context';
-import { useFocusable } from '../focus-context';
-import { colorscheme } from '../theme';
+import { useTuiApp } from '../../lib/context/app.js';
+import { useFocusable } from '../../lib/context/focus.js';
+import { colorscheme } from '../../theme.js';
 
 type ButtonProps = Omit<
   TextProps,
@@ -16,18 +16,18 @@ type ButtonProps = Omit<
 > &
   FocusableProps & {
     label: string;
-    commandIdOrAction: TuiCommandId | (() => void);
+    action?: (ctx: TuiAppContextValue) => unknown;
   };
 
 export function Button({
   id: providedId,
   label,
-  commandIdOrAction,
   fg,
   bg,
   attributes,
   selectable,
   focusScope,
+  action,
   onFocus,
   onBlur,
   onMouseUp,
@@ -39,7 +39,7 @@ export function Button({
   const id = providedId ?? `button-${generatedId}`;
   const buttonRef = useRef<TextRenderable>(null);
   const [pressed, setPressed] = useState(false);
-  const { runCommand } = useTuiApp();
+  const actionContext = useTuiApp();
   const focused = useFocusable({
     id,
     ref: buttonRef,
@@ -53,14 +53,6 @@ export function Button({
     if (button) button.focusable = true;
   }, []);
 
-  const activate = useCallback(() => {
-    if (typeof commandIdOrAction === 'function') {
-      commandIdOrAction();
-      return;
-    }
-    void runCommand(commandIdOrAction);
-  }, [commandIdOrAction, runCommand]);
-
   useBlur(() => setPressed(false));
 
   return (
@@ -70,7 +62,13 @@ export function Button({
       id={id}
       selectable={selectable ?? false}
       content={` ${label} `}
-      fg={focused ? colorscheme.bg : (fg ?? colorscheme.text)}
+      fg={
+        pressed
+          ? colorscheme.text
+          : focused
+            ? colorscheme.bg
+            : (fg ?? colorscheme.text)
+      }
       bg={
         pressed
           ? colorscheme.bgDark
@@ -87,7 +85,7 @@ export function Button({
         event.preventDefault();
         setPressed(true);
         buttonRef.current?.blur();
-        activate();
+        void action?.(actionContext);
       }}
       onMouseUp={(event) => {
         const button = buttonRef.current;
@@ -107,7 +105,7 @@ export function Button({
       onKeyDown={(key) => {
         if (key.name !== 'return' && key.name !== 'space') return;
         key.preventDefault();
-        activate();
+        void action?.(actionContext);
       }}
     />
   );

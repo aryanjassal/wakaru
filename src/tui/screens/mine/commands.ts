@@ -7,7 +7,7 @@ import type { SavedWord } from '../../types.js';
 import { useCallback } from 'react';
 import { analyzeWithOllama } from '@/core/llm.js';
 import { candidateToSavedWord, saveWord } from '@/core/storage.js';
-import { useTuiApp, useTuiCommand } from '../../app-context.js';
+import { useTuiApp, useTuiCommand } from '../../lib/context/app.js';
 import { errorMessage, readClipboard } from '../../lib/utils.js';
 import {
   clearMineState,
@@ -22,9 +22,12 @@ import {
 
 export const MINE_COMMAND_IDS = {
   analyzeWord: 'mine.analyzeWord',
-  clear: 'mine.clear',
-  pasteClipboard: 'mine.pasteClipboard',
+  clearWord: 'mine.clearWord',
+  clearContext: 'mine.clearContext',
+  pasteClipboardAsWord: 'mine.pasteClipboardAsWord',
+  pasteClipboardAsContext: 'mine.pasteClipboardAsContext',
   toggleDetails: 'mine.toggleDetails',
+  toggleContext: 'mine.toggleContext',
   candidatePrevious: 'candidate.previous',
   candidateNext: 'candidate.next',
   candidateAddSelected: 'candidate.addSelected',
@@ -155,13 +158,23 @@ export function useMineCommands({
     );
   }, [addToast, setMineState, stateRef]);
 
-  const clearMine = useCallback((): void => {
+  const clearWord = useCallback((): void => {
     if (wordRef.current) wordRef.current.value = '';
-    if (contextRef.current) contextRef.current.initialValue = '';
-    setMineState(clearMineState);
-  }, [contextRef, setMineState, wordRef]);
+    setMineState((state) => ({
+      ...clearMineState(state),
+      wordText: '',
+    }));
+  }, [setMineState, wordRef]);
 
-  const pasteClipboard = useCallback((): void => {
+  const clearContext = useCallback((): void => {
+    if (contextRef.current) contextRef.current.clear();
+    setMineState((state) => ({
+      ...clearMineState(state),
+      contextText: '',
+    }));
+  }, [setMineState, wordRef]);
+
+  const pasteClipboardAsWord = useCallback((): void => {
     const text = readClipboard();
     if (!text) {
       addToast('Clipboard is unavailable.', 'warning');
@@ -171,6 +184,17 @@ export function useMineCommands({
     if (wordRef.current) wordRef.current.value = text;
     setMineState((state) => ({ ...state, wordText: text }));
   }, [addToast, setMineState, wordRef]);
+
+  const pasteClipboardAsContext = useCallback((): void => {
+    const text = readClipboard();
+    if (!text) {
+      addToast('Clipboard is unavailable.', 'warning');
+      return;
+    }
+
+    if (contextRef.current) contextRef.current.setText(text);
+    setMineState((state) => ({ ...state, contextText: text }));
+  }, [addToast, setMineState, contextRef]);
 
   const selectCandidateOffset = useCallback(
     (offset: 1 | -1): void => {
@@ -198,6 +222,10 @@ export function useMineCommands({
     setMineState((state) => ({ ...state, showDetails: !state.showDetails }));
   }, [setMineState]);
 
+  const toggleContext = useCallback((): void => {
+    setMineState((state) => ({ ...state, showContext: !state.showContext }));
+  }, [setMineState]);
+
   useTuiCommand({
     id: MINE_COMMAND_IDS.analyzeWord,
     title: 'Analyze word',
@@ -206,16 +234,36 @@ export function useMineCommands({
   });
 
   useTuiCommand({
-    id: MINE_COMMAND_IDS.pasteClipboard,
-    title: 'Paste clipboard',
-    run: pasteClipboard,
+    id: MINE_COMMAND_IDS.pasteClipboardAsWord,
+    title: 'Paste clipboard as Word',
+    run: pasteClipboardAsWord,
   });
 
   useTuiCommand({
-    id: MINE_COMMAND_IDS.clear,
-    title: 'Clear mine input',
+    id: MINE_COMMAND_IDS.pasteClipboardAsContext,
+    title: 'Paste clipboard as Context',
+    run: pasteClipboardAsContext,
+  });
+
+  useTuiCommand({
+    id: MINE_COMMAND_IDS.clearWord,
+    title: 'Clear input word',
     keybindings: [{ key: 'c' }],
-    run: clearMine,
+    run: clearWord,
+  });
+
+  useTuiCommand({
+    id: MINE_COMMAND_IDS.clearContext,
+    title: 'Clear context sentence',
+    keybindings: [{ key: 'c', shift: true }],
+    run: clearContext,
+  });
+
+  useTuiCommand({
+    id: MINE_COMMAND_IDS.toggleContext,
+    title: 'Toggle context visibility',
+    keybindings: [{ key: 'v' }],
+    run: toggleContext,
   });
 
   useTuiCommand({

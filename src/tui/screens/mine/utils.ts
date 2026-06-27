@@ -5,13 +5,14 @@ import type {
   TuiMiningStatus,
 } from '../../types.js';
 
-import { truncate } from '../../format.js';
+import { truncate } from '../../lib/utils.js';
 
 export function createInitialMineState(): MineState {
   return {
     contextText: '',
     wordText: '',
     showDetails: false,
+    showContext: false,
     status: 'idle',
     statusMessage: 'Paste a word, optionally add context, then analyze.',
     errorMessage: null,
@@ -106,8 +107,13 @@ export function toggleCandidateInbox(
 
 export function clearMineState(state: MineState): MineState {
   return {
-    ...state,
+    // Reset base state
     ...createInitialMineState(),
+    // Retain persistent state
+    wordText: state.wordText,
+    contextText: state.contextText,
+    showDetails: state.showDetails,
+    showContext: state.showContext,
   };
 }
 
