@@ -1,12 +1,12 @@
 import { describe, it, expect } from '@jest/globals';
+import type { SavedWord } from '../src/tui/types.js';
 import {
+  addSavedWord,
   addToast,
   createInitialTuiState,
-  markCandidate,
   pruneToasts,
-  setCandidates,
 } from '../src/tui/state.js';
-import { getTestConfig, createTestCandidate } from './config.js';
+import { getTestConfig } from './config.js';
 
 describe('State', () => {
   const config = getTestConfig({
@@ -23,7 +23,7 @@ describe('State', () => {
     },
   });
 
-  const candidate = createTestCandidate({
+  const word: SavedWord = {
     id: 'c-1',
     expression: '曖昧',
     reading: 'あいまい',
@@ -33,29 +33,36 @@ describe('State', () => {
     exampleJapanese: '曖昧な返事をした。',
     exampleEnglish: 'They gave an ambiguous answer.',
     tags: ['jp', 'adjective'],
-    status: 'pending',
-  });
+    ankiFields: {
+      Front: '曖昧',
+      Back: 'ambiguous',
+    },
+    sourceText: '曖昧な返事',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
 
-  it('initial state uses config theme and empty mining queues', () => {
-    const state = createInitialTuiState(config, 1_000, {
-      cols: 100,
-      rows: 32,
-    });
+  it('initial state uses config and saved words', () => {
+    const state = createInitialTuiState(
+      config,
+      1_000,
+      {
+        cols: 100,
+        rows: 32,
+      },
+      [word]
+    );
 
-    expect(state.status).toBe('idle');
-    expect(state.candidates.length).toBe(0);
-    expect(state.savedWords.length).toBe(0);
+    expect(state.config.theme.name).toBe('night');
+    expect(state.savedWords.length).toBe(1);
     expect(state.viewportCols).toBe(100);
   });
 
-  it('candidate selection and marking are immutable', () => {
+  it('saved word updates are immutable', () => {
     const initial = createInitialTuiState(config);
-    const withCandidates = setCandidates(initial, [candidate]);
-    const marked = markCandidate(withCandidates, candidate.id, 'added');
+    const updated = addSavedWord(initial, word);
 
-    expect(withCandidates.selectedCandidateId).toBe(candidate.id);
-    expect(withCandidates.candidates[0]?.status).toBe('pending');
-    expect(marked.candidates[0]?.status).toBe('added');
+    expect(initial.savedWords.length).toBe(0);
+    expect(updated.savedWords[0]).toBe(word);
   });
 
   it('toasts can be pruned by duration', () => {

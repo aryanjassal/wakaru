@@ -1,14 +1,33 @@
-import type { TuiState } from '../types.js';
-
-import { ankiImportPath } from '@/core/storage.js';
+import { ankiImportPath, writeAnkiImport } from '@/core/storage.js';
+import { useTuiApp, useTuiCommand } from '../app-context.js';
 import { savedWordRows } from '../format.js';
 import { colorscheme } from '../theme.js';
 
-type LibraryScreenProps = Readonly<{
-  state: TuiState;
-}>;
+const LIBRARY_COMMAND_IDS = {
+  exportAnki: 'library.exportAnki',
+} as const;
 
-export function LibraryScreen({ state }: LibraryScreenProps) {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function LibraryScreen() {
+  const { addToast, config, savedWords } = useTuiApp();
+
+  useTuiCommand({
+    id: LIBRARY_COMMAND_IDS.exportAnki,
+    title: 'Export Anki import file',
+    keybindings: [{ key: 'e', ctrl: true }],
+    run: async () => {
+      try {
+        const path = await writeAnkiImport(config, savedWords);
+        addToast(`Wrote ${path}.`, 'success');
+      } catch (error) {
+        addToast(errorMessage(error), 'error');
+      }
+    },
+  });
+
   return (
     <box
       id="library-panel"
@@ -27,10 +46,10 @@ export function LibraryScreen({ state }: LibraryScreenProps) {
         flexGrow={1}
         fg={colorscheme.text}
         content={[
-          `Saved words: ${state.savedWords.length}`,
-          `Anki import: ${ankiImportPath(state.config)}`,
+          `Saved words: ${savedWords.length}`,
+          `Anki import: ${ankiImportPath(config)}`,
           '',
-          savedWordRows(state.savedWords),
+          savedWordRows(savedWords),
         ].join('\n')}
         wrapMode="word"
       />

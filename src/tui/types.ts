@@ -1,4 +1,5 @@
-import type { MiningCandidate, SavedWord, WakaruConfig } from '@/core/types.js';
+import type { SavedWord, WakaruConfig } from '@/core/types.js';
+import type { TuiCommandId } from './commands.js';
 
 export type {
   AnkiFieldConfig,
@@ -24,34 +25,10 @@ export type TuiState = Readonly<{
   viewportCols: number;
   viewportRows: number;
   config: WakaruConfig;
-  contextText: string;
-  wordText: string;
-  showDetails: boolean;
-  status: TuiMiningStatus;
-  statusMessage: string;
-  errorMessage: string | null;
-  candidates: readonly MiningCandidate[];
-  selectedCandidateId: string | null;
   savedWords: readonly SavedWord[];
-  showCommandPalette: boolean;
-  commandQuery: string;
-  commandIndex: number;
   toasts: readonly TuiToast[];
 }>;
 
 export type TuiRouteId = 'mine' | 'library' | 'settings';
 
-export type TuiStateUpdater = (update: (state: TuiState) => TuiState) => void;
-
-export type TuiCommandRunner = (commandId: string) => Promise<boolean>;
-
-export type TuiCommandContext = Readonly<{
-  getState: () => TuiState;
-  setState: TuiStateUpdater;
-  syncInputs: () => void;
-  navigate: (routeId: TuiRouteId) => void;
-  getRoute: () => TuiRouteId;
-  navigateOffset: (offset: 1 | -1) => void;
-  stop: () => Promise<void>;
-  runCommand: TuiCommandRunner;
-}>;
+export type TuiCommandRunner = (commandId: TuiCommandId) => Promise<boolean>;

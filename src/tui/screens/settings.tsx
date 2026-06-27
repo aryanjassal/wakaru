@@ -1,12 +1,9 @@
-import type { TuiState } from '../types.js';
-
+import { useTuiApp } from '../app-context.js';
 import { colorscheme } from '../theme.js';
 
-type SettingsScreenProps = Readonly<{
-  state: TuiState;
-}>;
+export function SettingsScreen() {
+  const { config } = useTuiApp();
 
-export function SettingsScreen({ state }: SettingsScreenProps) {
   return (
     <box
       id="settings-panel"
@@ -25,11 +22,11 @@ export function SettingsScreen({ state }: SettingsScreenProps) {
         flexGrow={1}
         fg={colorscheme.text}
         content={[
-          `Provider: ${state.config.llm.provider}`,
-          `Model: ${state.config.llm.model}`,
-          `API base: ${state.config.llm.apiBase}`,
-          `Words directory: ${state.config.storage.wordsDir}`,
-          `Theme: ${state.config.theme.name}`,
+          `Provider: ${config.llm.provider}`,
+          `Model: ${config.llm.model}`,
+          `API base: ${config.llm.apiBase}`,
+          `Words directory: ${config.storage.wordsDir}`,
+          `Theme: ${config.theme.name}`,
           '',
           'Edit ~/.config/wakaru/config.json, then restart Wakaru.',
         ].join('\n')}
