@@ -31,6 +31,20 @@ export type SavedWord = Readonly<
   }
 >;
 
+export type ChatMessage = Readonly<{
+  role: 'user' | 'assistant';
+  content: string;
+}>;
+
+export type ChatResponse = Readonly<{
+  markdown: string;
+  candidate?: MiningCandidate | undefined;
+}>;
+
+export type ChatGenerationOptions = Readonly<{
+  temperature?: number | undefined;
+}>;
+
 export type WakaruConfig = Readonly<{
   llm: Readonly<{
     provider: 'ollama';

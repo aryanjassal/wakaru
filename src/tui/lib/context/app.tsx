@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type {
   SavedWord,
-  TuiRouteId,
+  TuiRoute,
+  TuiRouteTarget,
   TuiToast,
   WakaruConfig,
 } from '../types.js';
@@ -11,21 +12,31 @@ import type {
   TuiCommandId,
 } from '../../commands.js';
 
-import { createContext, useContext, useEffect, useRef } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 export type TuiToastLevel = TuiToast['level'];
 
 export type TuiAppContextValue = Readonly<{
   config: WakaruConfig;
   savedWords: readonly SavedWord[];
-  routeId: TuiRouteId;
+  route: TuiRoute;
+  routeId: TuiRoute['id'];
   addSavedWord: (word: SavedWord) => void;
   addToast: (message: string, level?: TuiToastLevel) => void;
-  navigate: (routeId: TuiRouteId) => void;
+  navigate: (target: TuiRouteTarget) => void;
   navigateOffset: (offset: 1 | -1) => void;
   registerCommand: (command: TuiCommand) => TuiCommandDisposer;
   runCommand: (commandId: TuiCommandId) => Promise<boolean>;
   toggleCommandPalette: () => void;
+  getRouteState: <T>(key: string) => T | undefined;
+  setRouteState: <T>(key: string, state: T) => void;
   stop: (code?: number) => Promise<void>;
 }>;
 
@@ -74,4 +85,34 @@ export function useTuiCommandHandler(commandId: TuiCommandId): () => void {
   return () => {
     void runCommand(commandId);
   };
+}
+
+export function usePersistentRouteState<T>(
+  key: string,
+  createInitialState: () => T
+): readonly [T, Dispatch<SetStateAction<T>>] {
+  const { getRouteState, setRouteState } = useTuiApp();
+  const [state, setState] = useState(
+    () => getRouteState<T>(key) ?? createInitialState()
+  );
+
+  const setPersistentState = useCallback<Dispatch<SetStateAction<T>>>(
+    (update) => {
+      setState((current) => {
+        const next =
+          typeof update === 'function'
+            ? (update as (state: T) => T)(current)
+            : update;
+        setRouteState(key, next);
+        return next;
+      });
+    },
+    [key, setRouteState]
+  );
+
+  useEffect(() => {
+    setRouteState(key, state);
+  }, [key, setRouteState, state]);
+
+  return [state, setPersistentState] as const;
 }

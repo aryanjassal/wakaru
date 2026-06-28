@@ -1,4 +1,4 @@
-import type { SavedWord, WakaruConfig } from '@/core/types.js';
+import type { MiningCandidate, SavedWord, WakaruConfig } from '@/core/types.js';
 import type { TuiCommandId } from '../commands.js';
 
 export type {
@@ -29,6 +29,37 @@ export type TuiState = Readonly<{
   toasts: readonly TuiToast[];
 }>;
 
-export type TuiRouteId = 'mine' | 'library' | 'settings';
+export type ChatContextItem =
+  | Readonly<{ kind: 'candidate'; value: MiningCandidate }>
+  | Readonly<{ kind: 'saved-word'; value: SavedWord }>;
+
+export type TuiPrimaryRouteId = 'mine' | 'library' | 'chat' | 'settings';
+
+export type TuiReturnRoute =
+  | Readonly<{ id: 'mine' }>
+  | Readonly<{ id: 'library' }>
+  | Readonly<{
+      id: 'chat';
+      sessionId?: string | undefined;
+      contexts?: readonly ChatContextItem[] | undefined;
+    }>;
+
+export type TuiRoute =
+  | Readonly<{ id: 'mine' }>
+  | Readonly<{ id: 'library' }>
+  | Readonly<{ id: 'settings' }>
+  | Readonly<{
+      id: 'chat';
+      sessionId?: string | undefined;
+      contexts?: readonly ChatContextItem[] | undefined;
+    }>
+  | Readonly<{
+      id: 'word-detail';
+      item: ChatContextItem;
+      returnTo?: TuiReturnRoute | undefined;
+    }>;
+
+export type TuiRouteId = TuiRoute['id'];
+export type TuiRouteTarget = TuiPrimaryRouteId | TuiRoute;
 
 export type TuiCommandRunner = (commandId: TuiCommandId) => Promise<boolean>;

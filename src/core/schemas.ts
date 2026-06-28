@@ -44,6 +44,24 @@ export const DEFAULT_ANKI_FIELDS = [
   },
 ] as const;
 
+export const DEFAULT_WAKARU_CONFIG: WakaruConfig = {
+  llm: {
+    provider: 'ollama',
+    model: 'qwen3.5:9b',
+    apiBase: 'http://localhost:11434',
+    maxInputChars: 4096,
+  },
+  storage: {
+    wordsDir: '~/.config/wakaru/words',
+  },
+  theme: {
+    name: 'night',
+  },
+  anki: {
+    fields: [...DEFAULT_ANKI_FIELDS],
+  },
+};
+
 const ankiFieldConfigSchema = z
   .object({
     name: nonEmptyString,
@@ -85,21 +103,22 @@ export const wakaruConfigSchema = z
   .transform((config) => ({
     llm: {
       provider: 'ollama' as const,
-      model: config.llm?.model ?? 'qwen3.5:9b',
-      apiBase: (config.llm?.apiBase ?? 'http://localhost:11434').replace(
-        /\/+$/,
-        ''
-      ),
-      maxInputChars: config.llm?.maxInputChars ?? 4_000,
+      model: config.llm?.model ?? DEFAULT_WAKARU_CONFIG.llm.model,
+      apiBase: (
+        config.llm?.apiBase ?? DEFAULT_WAKARU_CONFIG.llm.apiBase
+      ).replace(/\/+$/, ''),
+      maxInputChars:
+        config.llm?.maxInputChars ?? DEFAULT_WAKARU_CONFIG.llm.maxInputChars,
     },
     storage: {
-      wordsDir: config.storage?.wordsDir ?? '~/.config/wakaru/words',
+      wordsDir:
+        config.storage?.wordsDir ?? DEFAULT_WAKARU_CONFIG.storage.wordsDir,
     },
     theme: {
-      name: config.theme?.name ?? 'night',
+      name: config.theme?.name ?? DEFAULT_WAKARU_CONFIG.theme.name,
     },
     anki: {
-      fields: config.anki?.fields ?? [...DEFAULT_ANKI_FIELDS],
+      fields: config.anki?.fields ?? [...DEFAULT_WAKARU_CONFIG.anki.fields],
     },
   })) satisfies z.ZodType<WakaruConfig>;
 
@@ -168,6 +187,11 @@ export const modelCandidateResponseSchema = z.preprocess(
       .min(1, 'must include at least one candidate'),
   })
 );
+
+export const modelChatResponseSchema = z.object({
+  markdown: nonEmptyString,
+  candidate: miningCandidateModelSchema.nullable().optional(),
+});
 
 export const miningCandidateSchema = z
   .preprocess(

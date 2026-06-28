@@ -2,7 +2,7 @@ import { describe, it, expect } from '@jest/globals';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { analyzeWithOllama } from '@/core/llm.js';
+import { analyzeWithOllama, chatWithOllama } from '@/core/llm.js';
 import { getTestConfig } from './config.js';
 
 describe('LLM', () => {
@@ -138,6 +138,93 @@ describe('LLM', () => {
       await expect(analyzeWithOllama(config, '失敗')).rejects.toThrow(
         /HTTP 500/
       );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('chatWithOllama returns markdown and an optional candidate', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestCount = 0;
+    globalThis.fetch = (_url, init) => {
+      requestCount += 1;
+      const body = JSON.parse(requestBody(init)) as Record<string, unknown>;
+      if (requestCount === 2) {
+        expect(String(body.prompt)).toMatch(/independently validating/);
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              response: JSON.stringify({
+                candidates: [
+                  {
+                    expression: '稼ぐ',
+                    reading: 'かせぐ',
+                    meaning: 'to earn',
+                    contextMeaning: 'to earn money',
+                    partOfSpeech: 'verb',
+                    exampleJapanese: '生活費を稼ぐ。',
+                    exampleEnglish: 'Earn living expenses.',
+                    tags: ['verb'],
+                    ankiFields: { Front: '稼ぐ' },
+                  },
+                ],
+              }),
+            }),
+            { status: 200 }
+          )
+        );
+      }
+      expect(String(body.prompt)).toMatch(/Attached vocabulary context/);
+      expect(String(body.prompt)).toMatch(/USER: Why is this a verb/);
+      expect(body.options).toEqual({ temperature: 0.2 });
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            response: JSON.stringify({
+              markdown: '**稼ぐ** is a godan verb.',
+              candidate: {
+                expression: '稼ぐ',
+                reading: 'かせぐ',
+                meaning: 'to earn',
+                contextMeaning: 'to earn money',
+                partOfSpeech: 'verb',
+                exampleJapanese: '生活費を稼ぐ。',
+                exampleEnglish: 'Earn living expenses.',
+                tags: ['verb'],
+                ankiFields: { Front: '稼ぐ' },
+              },
+            }),
+          }),
+          { status: 200 }
+        )
+      );
+    };
+
+    try {
+      const response = await chatWithOllama(
+        config,
+        [
+          {
+            id: 'saved-1',
+            expression: '稼ぐ',
+            reading: 'かせぐ',
+            meaning: 'to earn',
+            contextMeaning: 'to earn money',
+            partOfSpeech: 'verb',
+            exampleJapanese: '生活費を稼ぐ。',
+            exampleEnglish: 'Earn living expenses.',
+            tags: ['verb'],
+            ankiFields: { Front: '稼ぐ' },
+            sourceText: '生活費を稼ぐ。',
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        [{ role: 'user', content: 'Why is this a verb?' }],
+        { temperature: 0.2 }
+      );
+      expect(response.markdown).toMatch(/godan verb/);
+      expect(response.candidate?.status).toBe('pending');
+      expect(requestCount).toBe(2);
     } finally {
       globalThis.fetch = originalFetch;
     }

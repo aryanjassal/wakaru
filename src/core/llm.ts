@@ -1,11 +1,19 @@
 import type { z } from 'zod';
-import type { MiningCandidate, WakaruConfig } from './types.js';
+import type {
+  ChatMessage,
+  ChatGenerationOptions,
+  ChatResponse,
+  MiningCandidate,
+  SavedWord,
+  WakaruConfig,
+} from './types.js';
 
 import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { configDir } from './config.js';
 import {
   JsonValidationError,
+  modelChatResponseSchema,
   modelCandidateResponseSchema,
   ollamaGenerateResponseSchema,
   parseJsonText,
@@ -85,6 +93,44 @@ function normaliseCandidates(value: unknown): readonly MiningCandidate[] {
     'Ollama candidate response'
   );
   return parsed.candidates.map(normaliseCandidate);
+}
+
+function parseChatResponseText(text: string): ChatResponse {
+  const trimmed = text.trim();
+  const candidates = [
+    trimmed,
+    trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1],
+    (() => {
+      const start = trimmed.indexOf('{');
+      const end = trimmed.lastIndexOf('}');
+      return start >= 0 && end > start ? trimmed.slice(start, end + 1) : null;
+    })(),
+  ].filter((value): value is string => Boolean(value));
+
+  let lastError: Error | null = null;
+  for (const candidateText of candidates) {
+    const parsed = parseJsonText(candidateText, 'Ollama chat response');
+    if (!parsed.success) {
+      lastError = parsed.error;
+      continue;
+    }
+    try {
+      const response = parseWithSchema(
+        modelChatResponseSchema,
+        parsed.value,
+        'Ollama chat response'
+      );
+      return {
+        markdown: response.markdown,
+        ...(response.candidate
+          ? { candidate: normaliseCandidate(response.candidate, 0) }
+          : {}),
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+  throw lastError ?? new Error('The model did not return a chat response.');
 }
 
 function serialiseError(error: unknown): Record<string, unknown> {
@@ -244,4 +290,143 @@ export async function analyzeWithOllama(
   const word = wordText.trim();
   if (!word) return [];
   return analyzeChunk(config, word, options);
+}
+
+function chatPrompt(
+  config: WakaruConfig,
+  contexts: readonly (MiningCandidate | SavedWord)[],
+  messages: readonly ChatMessage[]
+): string {
+  const contextJson = contexts.map((item) => ({
+    expression: item.expression,
+    reading: item.reading,
+    meaning: item.meaning,
+    contextMeaning: item.contextMeaning,
+    partOfSpeech: item.partOfSpeech,
+    nuance: item.nuance,
+    exampleJapanese: item.exampleJapanese,
+    exampleEnglish: item.exampleEnglish,
+    tags: item.tags,
+    ankiFields: item.ankiFields,
+  }));
+  const transcript = messages
+    .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
+    .join('\n\n')
+    .slice(-config.llm.maxInputChars);
+  const fields = config.anki.fields
+    .map((field) => `- ${field.name}: ${field.purpose}`)
+    .join('\n');
+
+  return `You are a Japanese-learning assistant. Answer the user's question about the attached vocabulary context. The user may ask for clarification or request an improved candidate.
+
+Attached vocabulary context:
+${JSON.stringify(contextJson, null, 2)}
+
+Conversation:
+${transcript}
+
+Configured Anki fields:
+${fields}
+
+Use {word|reading} for optional furigana, for example {開発|かいはつ}. Do not use brackets for anything except ordinary Markdown links.
+
+Return only valid JSON with this shape:
+{
+  "markdown": "A useful answer formatted as Markdown",
+  "candidate": null
+}
+
+Set candidate to null for explanation-only answers. If the user asks to create, correct, or improve a word candidate, set candidate to a complete object with expression, reading, meaning, contextMeaning, partOfSpeech, optional nuance, exampleJapanese, exampleEnglish, tags, and ankiFields. Populate configured Anki field names exactly. Before returning a candidate, verify that its reading covers the complete expression character by character; never return a partial reading (for example, 開発 is かいはつ, not かい). Never omit markdown.`;
+}
+
+async function verifyChatCandidate(
+  config: WakaruConfig,
+  candidate: MiningCandidate
+): Promise<MiningCandidate> {
+  const response = await fetch(`${config.llm.apiBase}/api/generate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model: config.llm.model,
+      prompt: `You are independently validating a Japanese vocabulary record.
+
+Check every field for factual consistency. In particular, verify that the kana reading corresponds to the complete expression, not only its first kanji. Correct any error you find. Preserve configured Anki fields and return exactly one complete candidate.
+
+Candidate:
+${JSON.stringify(candidate, null, 2)}
+
+Return only valid JSON with this shape:
+{ "candidates": [{ "expression": "...", "reading": "...", "meaning": "...", "contextMeaning": "...", "partOfSpeech": "...", "nuance": "optional", "exampleJapanese": "...", "exampleEnglish": "...", "tags": [], "ankiFields": {} }] }`,
+      stream: false,
+      think: false,
+      format: 'json',
+      options: { temperature: 0 },
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Ollama candidate verification returned HTTP ${response.status}.`
+    );
+  }
+  const responseJson = parseJsonText(
+    await response.text(),
+    'Ollama candidate verification response'
+  );
+  if (!responseJson.success) throw responseJson.error;
+  const payload = parseWithSchema(
+    ollamaGenerateResponseSchema,
+    responseJson.value,
+    'Ollama candidate verification response'
+  );
+  if (payload.error) throw new Error(payload.error);
+  if (!payload.response)
+    throw new Error('Ollama returned an empty verification response.');
+  const verified = extractJson(payload.response)[0];
+  if (!verified) throw new Error('Ollama did not return a verified candidate.');
+  return verified;
+}
+
+export async function chatWithOllama(
+  config: WakaruConfig,
+  contexts: readonly (MiningCandidate | SavedWord)[],
+  messages: readonly ChatMessage[],
+  options: ChatGenerationOptions = {}
+): Promise<ChatResponse> {
+  if (!messages.length) throw new Error('A chat message is required.');
+  const response = await fetch(`${config.llm.apiBase}/api/generate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model: config.llm.model,
+      prompt: chatPrompt(config, contexts, messages),
+      stream: false,
+      think: false,
+      format: 'json',
+      options: {
+        temperature: options.temperature ?? 0.3,
+      },
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Ollama returned HTTP ${response.status}. Is it running at ${config.llm.apiBase}?`
+    );
+  }
+
+  const responseText = await response.text();
+  const responseJson = parseJsonText(responseText, 'Ollama generate response');
+  if (!responseJson.success) throw responseJson.error;
+  const payload = parseWithSchema(
+    ollamaGenerateResponseSchema,
+    responseJson.value,
+    'Ollama generate response'
+  );
+  if (payload.error) throw new Error(payload.error);
+  if (!payload.response) throw new Error('Ollama returned an empty response.');
+  const chatResponse = parseChatResponseText(payload.response);
+  if (!chatResponse.candidate) return chatResponse;
+  return {
+    ...chatResponse,
+    candidate: await verifyChatCandidate(config, chatResponse.candidate),
+  };
 }

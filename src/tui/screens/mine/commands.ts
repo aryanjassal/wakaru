@@ -22,6 +22,7 @@ import {
 // invocation by not requiring memorisation of stringified command identifiers.
 export const MINE_COMMAND_IDS = {
   analyzeWord: 'mine.analyzeWord',
+  chatSelected: 'mine.chatSelected',
   clearWord: 'mine.clearWord',
   clearContext: 'mine.clearContext',
   pasteClipboardAsWord: 'mine.pasteClipboardAsWord',
@@ -51,7 +52,7 @@ export function useMineCommands({
   wordRef,
   setMineState,
 }: MineCommandDeps): void {
-  const { addSavedWord, addToast, config } = useTuiApp();
+  const { addSavedWord, addToast, config, navigate } = useTuiApp();
 
   // const currentInputSnapshot = useCallback((): InputSnapshot => {
   //   return {
@@ -223,11 +224,28 @@ export function useMineCommands({
     setMineState((state) => ({ ...state, showContext: !state.showContext }));
   }, [setMineState]);
 
+  const chatSelected = useCallback((): void => {
+    const candidate = selectedCandidate(stateRef.current);
+    if (!candidate) return;
+    navigate({
+      id: 'chat',
+      sessionId: `candidate-${candidate.id}-${Date.now()}`,
+      contexts: [{ kind: 'candidate', value: candidate }],
+    });
+  }, [navigate, stateRef]);
+
   useTuiCommand({
     id: MINE_COMMAND_IDS.analyzeWord,
     title: 'Analyze word',
     keybindings: [{ key: 'a', ctrl: true }],
     run: analyzeWord,
+  });
+
+  useTuiCommand({
+    id: MINE_COMMAND_IDS.chatSelected,
+    title: 'Chat about selected candidate',
+    availability: selectedCandidateRequired,
+    run: chatSelected,
   });
 
   useTuiCommand({

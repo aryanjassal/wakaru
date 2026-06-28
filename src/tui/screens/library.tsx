@@ -1,6 +1,6 @@
 import { ankiImportPath, writeAnkiImport } from '@/core/storage.js';
+import { Button, Separator } from '../components/index.js';
 import { useTuiApp, useTuiCommand } from '../lib/context/app.js';
-import { savedWordRows } from '../lib/utils.js';
 import { colorscheme } from '../lib/theme.js';
 
 const LIBRARY_COMMAND_IDS = {
@@ -12,7 +12,7 @@ function errorMessage(error: unknown): string {
 }
 
 export function LibraryScreen() {
-  const { addToast, config, savedWords } = useTuiApp();
+  const { addToast, config, navigate, savedWords } = useTuiApp();
 
   useTuiCommand({
     id: LIBRARY_COMMAND_IDS.exportAnki,
@@ -31,28 +31,44 @@ export function LibraryScreen() {
   return (
     <box
       id="library-panel"
-      flexGrow={1}
       width="100%"
       flexDirection="column"
+      rowGap={1}
       border
       borderStyle="single"
       borderColor={colorscheme.gutter}
       padding={1}
-      title="Library"
+      title=" Library "
       titleColor={colorscheme.primary}
     >
       <text
-        id="library-text"
-        flexGrow={1}
-        fg={colorscheme.text}
-        content={[
-          `Saved words: ${savedWords.length}`,
-          `Anki import: ${ankiImportPath(config)}`,
-          '',
-          savedWordRows(savedWords),
-        ].join('\n')}
-        wrapMode="word"
+        content={`Saved words: ${savedWords.length}`}
+        fg={colorscheme.muted}
       />
+      <text
+        content={`Anki import: ${ankiImportPath(config)}`}
+        fg={colorscheme.muted}
+      />
+      <Separator />
+      {savedWords.length ? (
+        savedWords.map((word) => (
+          <Button
+            key={word.id}
+            id={`library-word-${word.id}`}
+            width="100%"
+            label={`${word.expression}  ${word.reading}  ${word.meaning}`}
+            action={() =>
+              navigate({
+                id: 'word-detail',
+                item: { kind: 'saved-word', value: word },
+                returnTo: { id: 'library' },
+              })
+            }
+          />
+        ))
+      ) : (
+        <text content="No saved words yet." fg={colorscheme.muted} />
+      )}
     </box>
   );
 }

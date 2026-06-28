@@ -1,11 +1,12 @@
 import type { WakaruConfig } from './types.js';
 
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import {
   parseJsonText,
   parseWithSchema,
+  DEFAULT_WAKARU_CONFIG,
   wakaruConfigSchema,
 } from './schemas.js';
 
@@ -33,7 +34,13 @@ export function loadConfig(): WakaruConfig {
   const path = configPath();
   if (!existsSync(path)) {
     mkdirSync(dirname(path), { recursive: true });
-    return parseWithSchema(wakaruConfigSchema, {}, `Config file ${path}`);
+    const config = parseWithSchema(
+      wakaruConfigSchema,
+      DEFAULT_WAKARU_CONFIG,
+      `Config file ${path}`
+    );
+    writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+    return config;
   }
 
   const text = readFileSync(path, 'utf8');

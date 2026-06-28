@@ -1,5 +1,5 @@
 import type { CliRenderer, InputRenderable, KeyEvent } from '@opentui/core';
-import type { TuiRouteId, TuiState } from './lib/types';
+import type { TuiRoute, TuiRouteTarget, TuiState } from './lib/types';
 import type { TuiCommand, TuiCommandId } from './commands';
 import type { TuiToastLevel } from './lib/context/app';
 
@@ -14,6 +14,8 @@ import { TUI_ROUTES } from './routes';
 import { LibraryScreen } from './screens/library';
 import { MineScreen } from './screens/mine/screen';
 import { SettingsScreen } from './screens/settings';
+import { ChatScreen } from './screens/chat/screen';
+import { WordDetailScreen } from './screens/word-detail';
 import {
   addSavedWord as addSavedWordToState,
   addToast as addToastToState,
@@ -33,6 +35,7 @@ const SHELL_COMMAND_IDS = {
   commandsTogglePalette: 'commands.togglePalette',
   navigationMine: 'navigation.mine',
   navigationLibrary: 'navigation.library',
+  navigationChat: 'navigation.chat',
   navigationSettings: 'navigation.settings',
   navigationNext: 'navigation.next',
   navigationPrevious: 'navigation.previous',
@@ -90,9 +93,16 @@ function ShellCommands() {
   });
 
   useTuiCommand({
+    id: SHELL_COMMAND_IDS.navigationChat,
+    title: 'Go to Chat',
+    keybindings: [{ key: '3' }],
+    run: () => navigate('chat'),
+  });
+
+  useTuiCommand({
     id: SHELL_COMMAND_IDS.navigationSettings,
     title: 'Go to Settings',
-    keybindings: [{ key: '3' }],
+    keybindings: [{ key: '4' }],
     run: () => navigate('settings'),
   });
 
@@ -118,27 +128,62 @@ function commandSearchText(command: TuiCommand): string {
 }
 
 function CurrentRoute() {
-  const { routeId } = useTuiApp();
-  switch (routeId) {
+  const { route } = useTuiApp();
+  switch (route.id) {
     case 'mine':
       return <MineScreen />;
     case 'library':
       return <LibraryScreen />;
+    case 'chat':
+      return (
+        <ChatScreen
+          key={route.sessionId ?? 'default'}
+          sessionId={route.sessionId}
+          initialContexts={route.contexts}
+        />
+      );
     case 'settings':
       return <SettingsScreen />;
+    case 'word-detail':
+      return <WordDetailScreen item={route.item} returnTo={route.returnTo} />;
   }
+}
+
+function MainContent() {
+  const { route } = useTuiApp();
+  if (route.id === 'chat') {
+    return (
+      <box width="100%" flexGrow={1} flexBasis={0} minHeight={0}>
+        <CurrentRoute />
+      </box>
+    );
+  }
+  return (
+    <scrollbox
+      width="100%"
+      flexGrow={1}
+      flexShrink={1}
+      flexBasis={0}
+      minHeight={0}
+      scrollY
+      scrollX={false}
+    >
+      <CurrentRoute />
+    </scrollbox>
+  );
 }
 
 export function TuiApp({ initialState, stop }: TuiAppProps) {
   const renderer = useRenderer();
   const [state, setState] = useState(initialState);
-  const [routeId, setRouteId] = useState<TuiRouteId>('mine');
+  const [route, setRoute] = useState<TuiRoute>({ id: 'mine' });
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
   const [commandIndex, setCommandIndex] = useState(0);
   const [commands, setCommands] = useState<readonly TuiCommand[]>([]);
   const stateRef = useRef(state);
-  const routeIdRef = useRef(routeId);
+  const routeRef = useRef(route);
+  const routeStateRef = useRef(new Map<string, unknown>());
   const commandPaletteInputRef = useRef<InputRenderable>(null);
   const commandRegistry = useMemo(() => new TuiCommandRegistry(), []);
 
@@ -164,16 +209,18 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
     [setTuiState]
   );
 
-  const navigate = useCallback((nextRouteId: TuiRouteId): void => {
-    routeIdRef.current = nextRouteId;
-    setRouteId(nextRouteId);
+  const navigate = useCallback((target: TuiRouteTarget): void => {
+    const nextRoute: TuiRoute =
+      typeof target === 'string' ? { id: target } : target;
+    routeRef.current = nextRoute;
+    setRoute(nextRoute);
     setShowCommandPalette(false);
   }, []);
 
   const navigateOffset = useCallback(
     (offset: 1 | -1): void => {
       const index = TUI_ROUTES.findIndex(
-        (route) => route.id === routeIdRef.current
+        (candidate) => candidate.id === routeRef.current.id
       );
       const safeIndex = index < 0 ? 0 : index;
       const next =
@@ -184,6 +231,14 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
     },
     [navigate]
   );
+
+  const getRouteState = useCallback(<T,>(key: string): T | undefined => {
+    return routeStateRef.current.get(key) as T | undefined;
+  }, []);
+
+  const setRouteState = useCallback(<T,>(key: string, value: T): void => {
+    routeStateRef.current.set(key, value);
+  }, []);
 
   const registerCommand = useCallback(
     (command: TuiCommand) => {
@@ -236,7 +291,8 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
     () => ({
       config: state.config,
       savedWords: state.savedWords,
-      routeId,
+      route,
+      routeId: route.id,
       addSavedWord,
       addToast,
       navigate,
@@ -244,6 +300,8 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
       registerCommand,
       runCommand,
       toggleCommandPalette,
+      getRouteState,
+      setRouteState,
       stop,
     }),
     [
@@ -251,12 +309,14 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
       addToast,
       navigate,
       navigateOffset,
+      getRouteState,
       registerCommand,
-      routeId,
+      route,
       runCommand,
       state.config,
       state.savedWords,
       stop,
+      setRouteState,
       toggleCommandPalette,
     ]
   );
@@ -266,8 +326,8 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
   }, [state]);
 
   useEffect(() => {
-    routeIdRef.current = routeId;
-  }, [routeId]);
+    routeRef.current = route;
+  }, [route]);
 
   useEffect(() => {
     if (!showCommandPalette) return;
@@ -416,20 +476,22 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
               columnGap={2}
               flexDirection="row"
             >
-              {TUI_ROUTES.map((route) => (
+              {TUI_ROUTES.map((navRoute) => (
                 <Button
-                  key={route.id}
-                  id={`wakaru-menu-${route.id}`}
+                  key={navRoute.id}
+                  id={`wakaru-menu-${navRoute.id}`}
                   height={1}
-                  fg={route.id === routeId ? colorscheme.bg : colorscheme.text}
+                  fg={
+                    navRoute.id === route.id ? colorscheme.bg : colorscheme.text
+                  }
                   bg={
-                    route.id === routeId
+                    navRoute.id === route.id
                       ? colorscheme.primary
                       : colorscheme.bgHighlight
                   }
-                  label={route.title}
+                  label={navRoute.title}
                   attributes={TextAttributes.BOLD}
-                  action={() => navigate(route.id)}
+                  action={() => navigate(navRoute.id)}
                 />
               ))}
             </box>
@@ -462,17 +524,7 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
               onSelectedIndexChange={setCommandIndex}
             />
           ) : null}
-          <scrollbox
-            width="100%"
-            flexGrow={1}
-            flexShrink={1}
-            flexBasis={0}
-            minHeight={0}
-            scrollY
-            scrollX={false}
-          >
-            <CurrentRoute />
-          </scrollbox>
+          <MainContent />
         </box>
       </TuiAppProvider>
     </FocusProvider>

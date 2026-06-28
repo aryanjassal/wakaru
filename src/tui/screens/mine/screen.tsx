@@ -1,7 +1,7 @@
 import type { InputRenderable, TextareaRenderable } from '@opentui/core';
 import type { MineState } from './types';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { MINE_COMMAND_IDS, useMineCommands } from './commands';
 import {
   candidateDetailText,
@@ -10,6 +10,7 @@ import {
 } from './utils';
 import { colorscheme } from '@/tui/lib/theme';
 import { Button, Input, Loader, Separator, Textarea } from '@/tui/components';
+import { usePersistentRouteState } from '@/tui/lib/context/app';
 
 function MineStatus({ status }: Readonly<{ status: MineState['status'] }>) {
   switch (status) {
@@ -25,7 +26,10 @@ function MineStatus({ status }: Readonly<{ status: MineState['status'] }>) {
 }
 
 export function MineScreen() {
-  const [state, setState] = useState(createInitialMineState);
+  const [state, setState] = usePersistentRouteState(
+    'mine',
+    createInitialMineState
+  );
   const stateRef = useRef(state);
   const contextRef = useRef<TextareaRenderable>(null);
   const wordRef = useRef<InputRenderable>(null);
@@ -73,6 +77,9 @@ export function MineScreen() {
         id="mine-word"
         value={state.wordText}
         placeholder="Selected word"
+        onInput={(wordText) =>
+          setMineState((current) => ({ ...current, wordText }))
+        }
       />
       <box flexDirection="row" width="100%" columnGap={2}>
         <Button
@@ -98,6 +105,10 @@ export function MineScreen() {
               initialValue={state.contextText}
               placeholder="Optional context sentence"
               wrapMode="word"
+              onContentChange={() => {
+                const contextText = contextRef.current?.plainText ?? '';
+                setMineState((current) => ({ ...current, contextText }));
+              }}
             />
             <box flexDirection="row" width="100%" columnGap={2}>
               <Button
@@ -115,10 +126,16 @@ export function MineScreen() {
           <Separator />
         </>
       )}
-      <Button
-        label="Analyze"
-        action={(ctx) => ctx.runCommand(MINE_COMMAND_IDS.analyzeWord)}
-      />
+      <box width="100%" flexDirection="row" columnGap={2}>
+        <Button
+          label="Analyze"
+          action={(ctx) => ctx.runCommand(MINE_COMMAND_IDS.analyzeWord)}
+        />
+        <Button
+          label="Chat"
+          action={(ctx) => ctx.runCommand(MINE_COMMAND_IDS.chatSelected)}
+        />
+      </box>
       <MineStatus status={state.status} />
       <text
         id="candidate-list"
