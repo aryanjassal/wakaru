@@ -1,6 +1,6 @@
 import type { BoxProps } from '@opentui/react';
 
-import { colorscheme } from '../../theme.js';
+import { colorscheme } from '../../lib/theme.js';
 
 type SeparatorOrientation = 'horizontal' | 'vertical';
 

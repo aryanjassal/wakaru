@@ -1,5 +1,5 @@
 import { useTuiApp } from '../lib/context/app.js';
-import { colorscheme } from '../theme.js';
+import { colorscheme } from '../lib/theme.js';
 
 export function SettingsScreen() {
   const { config } = useTuiApp();

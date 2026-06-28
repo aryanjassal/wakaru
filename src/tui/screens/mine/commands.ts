@@ -1,25 +1,25 @@
 import type { InputRenderable, TextareaRenderable } from '@opentui/core';
 import type { RefObject } from 'react';
-import type { InputSnapshot, MineState } from './types.js';
-import type { TuiCommandAvailability } from '../../commands.js';
-import type { SavedWord } from '../../types.js';
+import type { TuiCommandAvailability } from '@/tui/commands';
+import type { SavedWord } from '@/tui/lib/types';
+import type { InputSnapshot, MineState } from './types';
 
 import { useCallback } from 'react';
-import { analyzeWithOllama } from '@/core/llm.js';
-import { candidateToSavedWord, saveWord } from '@/core/storage.js';
-import { useTuiApp, useTuiCommand } from '../../lib/context/app.js';
-import { errorMessage, readClipboard } from '../../lib/utils.js';
+import { analyzeWithOllama } from '@/core/llm';
+import { candidateToSavedWord, saveWord } from '@/core/storage';
+import { useTuiApp, useTuiCommand } from '@/tui/lib/context/app';
+import { errorMessage, readClipboard } from '@/tui/lib/utils';
 import {
   clearMineState,
   markCandidate,
   selectedCandidate,
   selectedIndex,
   setCandidates,
-  setError,
-  setStatus,
   toggleCandidateInbox,
-} from './utils.js';
+} from './utils';
 
+// List of command identifiers implemented by this page. Simplifies command
+// invocation by not requiring memorisation of stringified command identifiers.
 export const MINE_COMMAND_IDS = {
   analyzeWord: 'mine.analyzeWord',
   clearWord: 'mine.clearWord',
@@ -53,23 +53,25 @@ export function useMineCommands({
 }: MineCommandDeps): void {
   const { addSavedWord, addToast, config } = useTuiApp();
 
-  const currentInputSnapshot = useCallback((): InputSnapshot => {
-    return {
-      contextText:
-        contextRef.current?.plainText ?? stateRef.current.contextText,
-      wordText: wordRef.current?.value ?? stateRef.current.wordText,
-    };
-  }, [contextRef, stateRef, wordRef]);
+  // const currentInputSnapshot = useCallback((): InputSnapshot => {
+  //   return {
+  //     contextText:
+  //       contextRef.current?.plainText ?? stateRef.current.contextText,
+  //     wordText: wordRef.current?.value ?? stateRef.current.wordText,
+  //   };
+  // }, [contextRef, stateRef, wordRef]);
 
   const syncInputs = useCallback((): InputSnapshot => {
-    const snapshot = currentInputSnapshot();
+    const snapshot = {
+      contextText: contextRef.current?.plainText ?? '',
+      wordText: wordRef.current?.value ?? '',
+    };
     setMineState((current) => ({
       ...current,
-      contextText: snapshot.contextText,
-      wordText: snapshot.wordText,
+      ...snapshot,
     }));
     return snapshot;
-  }, [currentInputSnapshot, setMineState]);
+  }, [contextRef, wordRef, setMineState]);
 
   const selectedCandidateRequired = useCallback((): TuiCommandAvailability => {
     if (!stateRef.current.selectedCandidateId) {
@@ -91,7 +93,7 @@ export function useMineCommands({
       return;
     }
 
-    setMineState((state) => setStatus(state, 'analyzing', 'Analyzing word...'));
+    setMineState((state) => ({ ...state, status: 'analyzing' }));
 
     try {
       const candidates = await analyzeWithOllama(config, word, { contextText });
@@ -102,7 +104,7 @@ export function useMineCommands({
       );
     } catch (error) {
       const message = errorMessage(error);
-      setMineState((state) => setError(state, message));
+      setMineState((state) => ({ ...state, status: 'error' }));
       addToast(message, 'error');
     }
   }, [addToast, config, setMineState, stateRef, syncInputs]);
@@ -120,9 +122,7 @@ export function useMineCommands({
       return;
     }
 
-    setMineState((state) =>
-      setStatus(state, 'saving', `Saving ${candidate.expression}...`)
-    );
+    setMineState((state) => ({ ...state, status: 'saving' }));
 
     try {
       const sourceText =
@@ -130,17 +130,14 @@ export function useMineCommands({
       const word: SavedWord = candidateToSavedWord(candidate, sourceText);
       await saveWord(config, word);
       addSavedWord(word);
-      setMineState((state) =>
-        setStatus(
-          markCandidate(state, candidate.id, 'added'),
-          'idle',
-          `${candidate.expression} saved to Anki import file.`
-        )
-      );
+      setMineState((state) => ({
+        ...markCandidate(state, candidate.id, 'added'),
+        status: 'idle',
+      }));
       addToast(`Saved ${candidate.expression}.`, 'success');
     } catch (error) {
       const message = errorMessage(error);
-      setMineState((state) => setError(state, message));
+      setMineState((state) => ({ ...state, status: 'error' }));
       addToast(message, 'error');
     }
   }, [addSavedWord, addToast, config, setMineState, stateRef, syncInputs]);

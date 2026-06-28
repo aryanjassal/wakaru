@@ -1,5 +1,5 @@
 import type { CliRenderer, InputRenderable, KeyEvent } from '@opentui/core';
-import type { TuiRouteId, TuiState } from './types';
+import type { TuiRouteId, TuiState } from './lib/types';
 import type { TuiCommand, TuiCommandId } from './commands';
 import type { TuiToastLevel } from './lib/context/app';
 
@@ -20,8 +20,8 @@ import {
   createToast,
   pruneToasts,
   setViewport,
-} from './state';
-import { colorscheme, NAME, TAGLINE } from './theme';
+} from './lib/state';
+import { colorscheme, NAME, TAGLINE } from './lib/theme';
 import { Button } from './components/primitives/button';
 import { CommandPalette } from './components/index';
 
@@ -378,6 +378,7 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
             flexDirection="column"
             rowGap={1}
             paddingX={1}
+            flexShrink={0}
             borderColor={colorscheme.gutter}
             border
           >
@@ -432,13 +433,23 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
                 />
               ))}
             </box>
-            <text
-              id="wakaru-tooltip"
-              height={1}
-              fg={colorscheme.muted}
-              content="ctrl+p commands · q quit"
-              attributes={TextAttributes.ITALIC}
-            />
+            <box width="100%" flexDirection="row">
+              <text
+                id="wakaru-tooltip"
+                height={1}
+                fg={colorscheme.muted}
+                content="ctrl+p commands · q quit"
+                attributes={TextAttributes.ITALIC}
+              />
+              <box flexGrow={1} />
+              <text
+                id="wakaru-toasts"
+                height={1}
+                fg={colorscheme.warning}
+                content={toastText(state.toasts)}
+                wrapMode="word"
+              />
+            </box>
           </box>
           {showCommandPalette ? (
             <CommandPalette
@@ -451,14 +462,17 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
               onSelectedIndexChange={setCommandIndex}
             />
           ) : null}
-          <CurrentRoute />
-          <text
-            id="wakaru-toasts"
-            height={3}
-            fg={colorscheme.warning}
-            content={toastText(state.toasts)}
-            wrapMode="word"
-          />
+          <scrollbox
+            width="100%"
+            flexGrow={1}
+            flexShrink={1}
+            flexBasis={0}
+            minHeight={0}
+            scrollY
+            scrollX={false}
+          >
+            <CurrentRoute />
+          </scrollbox>
         </box>
       </TuiAppProvider>
     </FocusProvider>

@@ -1,10 +1,10 @@
 import { createCliRenderer } from '@opentui/core';
 import { createRoot } from '@opentui/react';
-import { loadConfig } from '@/core/config.js';
-import { loadSavedWords } from '@/core/storage.js';
-import { TuiApp } from './app.js';
-import { createInitialTuiState } from './state.js';
-import { colorscheme } from './theme.js';
+import { loadConfig } from '@/core/config';
+import { loadSavedWords } from '@/core/storage';
+import { TuiApp } from './app';
+import { createInitialTuiState } from './lib/state';
+import { colorscheme } from './lib/theme';
 
 const UI_FPS_CAP = 60;
 
@@ -38,6 +38,7 @@ const stopPromise = new Promise<void>((resolve) => {
 });
 
 const renderer = await createCliRenderer({
+  autoFocus: false,
   exitOnCtrlC: false,
   targetFps: UI_FPS_CAP,
   maxFps: UI_FPS_CAP,

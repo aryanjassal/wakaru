@@ -5,7 +5,7 @@ import type { FocusableProps } from '../types.js';
 
 import { useCallback, useRef } from 'react';
 import { useFocusable } from '../../lib/context/focus.js';
-import { colorscheme } from '../../theme.js';
+import { colorscheme } from '../../lib/theme.js';
 
 type InputProps = Omit<
   TuiInputProps,

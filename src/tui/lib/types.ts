@@ -1,5 +1,5 @@
 import type { SavedWord, WakaruConfig } from '@/core/types.js';
-import type { TuiCommandId } from './commands.js';
+import type { TuiCommandId } from '../commands.js';
 
 export type {
   AnkiFieldConfig,

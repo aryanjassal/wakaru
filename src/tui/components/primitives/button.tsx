@@ -8,7 +8,7 @@ import { useBlur } from '@opentui/react';
 import { useCallback, useId, useRef, useState } from 'react';
 import { useTuiApp } from '../../lib/context/app.js';
 import { useFocusable } from '../../lib/context/focus.js';
-import { colorscheme } from '../../theme.js';
+import { colorscheme } from '../../lib/theme.js';
 
 type ButtonProps = Omit<
   TextProps,

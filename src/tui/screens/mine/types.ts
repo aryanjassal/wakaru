@@ -1,4 +1,4 @@
-import type { MiningCandidate, TuiMiningStatus } from '@/tui/types';
+import type { MiningCandidate, TuiMiningStatus } from '@/tui/lib/types';
 
 export type MineState = Readonly<{
   contextText: string;
@@ -6,8 +6,6 @@ export type MineState = Readonly<{
   showDetails: boolean;
   showContext: boolean;
   status: TuiMiningStatus;
-  statusMessage: string;
-  errorMessage: string | null;
   candidates: readonly MiningCandidate[];
   selectedCandidateId: string | null;
 }>;

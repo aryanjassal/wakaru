@@ -4,7 +4,7 @@ import type {
   TuiRouteId,
   TuiToast,
   WakaruConfig,
-} from '../../types.js';
+} from '../types.js';
 import type {
   TuiCommand,
   TuiCommandDisposer,

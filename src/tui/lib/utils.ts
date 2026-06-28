@@ -1,4 +1,4 @@
-import type { SavedWord, TuiToast } from '../types.js';
+import type { SavedWord, TuiToast } from './types.js';
 
 import { execFileSync } from 'node:child_process';
 
@@ -56,9 +56,12 @@ export function savedWordRows(words: readonly SavedWord[]): string {
     .join('\n');
 }
 
-export function toastText(toasts: readonly TuiToast[]): string {
+export function toastText(
+  toasts: readonly TuiToast[],
+  count: number = 1
+): string {
   return toasts
-    .slice(-3)
+    .slice(-count)
     .map((toast) => `${toast.level}: ${toast.message}`)
     .join('\n');
 }

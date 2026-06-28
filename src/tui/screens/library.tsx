@@ -1,7 +1,7 @@
 import { ankiImportPath, writeAnkiImport } from '@/core/storage.js';
 import { useTuiApp, useTuiCommand } from '../lib/context/app.js';
 import { savedWordRows } from '../lib/utils.js';
-import { colorscheme } from '../theme.js';
+import { colorscheme } from '../lib/theme.js';
 
 const LIBRARY_COMMAND_IDS = {
   exportAnki: 'library.exportAnki',

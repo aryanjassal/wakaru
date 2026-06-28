@@ -1,11 +1,7 @@
-import type { MineState } from './types.js';
-import type {
-  MiningCandidate,
-  MiningCandidateStatus,
-  TuiMiningStatus,
-} from '../../types.js';
+import type { MineState } from './types';
+import type { MiningCandidate, MiningCandidateStatus } from '@/tui/lib/types';
 
-import { truncate } from '../../lib/utils.js';
+import { truncate } from '@/tui/lib/utils';
 
 export function createInitialMineState(): MineState {
   return {
@@ -14,8 +10,6 @@ export function createInitialMineState(): MineState {
     showDetails: false,
     showContext: false,
     status: 'idle',
-    statusMessage: 'Paste a word, optionally add context, then analyze.',
-    errorMessage: null,
     candidates: [],
     selectedCandidateId: null,
   };
@@ -36,28 +30,6 @@ export function selectedCandidate(state: MineState): MiningCandidate | null {
   );
 }
 
-export function setStatus(
-  state: MineState,
-  status: TuiMiningStatus,
-  message = state.statusMessage
-): MineState {
-  return {
-    ...state,
-    status,
-    statusMessage: message,
-    errorMessage: status === 'error' ? state.errorMessage : null,
-  };
-}
-
-export function setError(state: MineState, message: string): MineState {
-  return {
-    ...state,
-    status: 'error',
-    statusMessage: 'Action failed.',
-    errorMessage: message,
-  };
-}
-
 export function setCandidates(
   state: MineState,
   candidates: readonly MiningCandidate[]
@@ -68,10 +40,6 @@ export function setCandidates(
     selectedCandidateId: candidates[0]?.id ?? null,
     showDetails: false,
     status: 'idle',
-    statusMessage: candidates.length
-      ? 'Review the word meaning, then add or skip it.'
-      : 'No meaning found. Try adding a context sentence.',
-    errorMessage: null,
   };
 }
 

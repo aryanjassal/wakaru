@@ -8,8 +8,21 @@ import {
   candidateRows,
   createInitialMineState,
 } from './utils';
-import { colorscheme } from '../../theme';
-import { Button, Input, Textarea, Separator } from '../../components';
+import { colorscheme } from '@/tui/lib/theme';
+import { Button, Input, Loader, Separator, Textarea } from '@/tui/components';
+
+function MineStatus({ status }: Readonly<{ status: MineState['status'] }>) {
+  switch (status) {
+    case 'analyzing':
+      return <Loader label="ANALYZING" />;
+    case 'saving':
+      return <text height={1} fg={colorscheme.info} content="SAVING" />;
+    case 'error':
+      return <text height={1} fg={colorscheme.danger} content="ERROR" />;
+    case 'idle':
+      return <text height={1} fg={colorscheme.muted} content="IDLE" />;
+  }
+}
 
 export function MineScreen() {
   const [state, setState] = useState(createInitialMineState);
@@ -17,6 +30,7 @@ export function MineScreen() {
   const contextRef = useRef<TextareaRenderable>(null);
   const wordRef = useRef<InputRenderable>(null);
 
+  // Updates state for both the reference and the real state
   const setMineState = useCallback(
     (update: (state: MineState) => MineState) => {
       const next = update(stateRef.current);
@@ -26,14 +40,12 @@ export function MineScreen() {
     []
   );
 
+  // Synchronize stateRef and state
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
-  useEffect(() => {
-    wordRef.current?.focus();
-  }, []);
-
+  // Dynamically register page commands
   useMineCommands({
     stateRef,
     contextRef,
@@ -55,11 +67,6 @@ export function MineScreen() {
       title=" Mine "
       titleColor={colorscheme.primary}
     >
-      {/* <text
-        height={1}
-        fg={colorscheme.muted}
-        content="Define words and save them for studying later"
-      /> */}
       <Input
         label="Word"
         ref={wordRef}
@@ -112,11 +119,7 @@ export function MineScreen() {
         label="Analyze"
         action={(ctx) => ctx.runCommand(MINE_COMMAND_IDS.analyzeWord)}
       />
-      <text
-        height={1}
-        fg={state.status === 'error' ? colorscheme.danger : colorscheme.muted}
-        content={`${state.status.toUpperCase()} · ${state.statusMessage}`}
-      />
+      <MineStatus status={state.status} />
       <text
         id="candidate-list"
         flexShrink={0}
@@ -128,7 +131,6 @@ export function MineScreen() {
       <text
         id="candidate-detail"
         width="100%"
-        // height={10}
         fg={colorscheme.muted}
         content={candidateDetailText(state)}
         wrapMode="word"

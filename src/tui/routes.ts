@@ -1,4 +1,4 @@
-import type { TuiRouteId } from './types.js';
+import type { TuiRouteId } from './lib/types.js';
 
 export const TUI_ROUTES: readonly Readonly<{
   id: TuiRouteId;

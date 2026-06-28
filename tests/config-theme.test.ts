@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { loadConfig } from '@/core/config.js';
-import { colorscheme } from '../src/tui/theme.js';
+import { colorscheme } from '../src/tui/lib/theme.js';
 import { getTestConfig } from './config.js';
 
 describe('Config and Theme', () => {

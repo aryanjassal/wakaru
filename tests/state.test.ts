@@ -1,11 +1,11 @@
 import { describe, it, expect } from '@jest/globals';
-import type { SavedWord } from '../src/tui/types.js';
+import type { SavedWord } from '../src/tui/lib/types.js';
 import {
   addSavedWord,
   addToast,
   createInitialTuiState,
   pruneToasts,
-} from '../src/tui/state.js';
+} from '../src/tui/lib/state.js';
 import { getTestConfig } from './config.js';
 
 describe('State', () => {

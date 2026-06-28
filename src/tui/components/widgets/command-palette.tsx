@@ -4,7 +4,7 @@ import type { InputRenderable, ScrollBoxRenderable } from '@opentui/core';
 import React from 'react';
 import { TextAttributes } from '@opentui/core';
 import { useFocusable } from '../../lib/context/focus.js';
-import { colorscheme } from '../../theme';
+import { colorscheme } from '../../lib/theme';
 
 function commandPaletteRowId(commandId: TuiCommandId): string {
   return `command-palette-command-${commandId}`;
