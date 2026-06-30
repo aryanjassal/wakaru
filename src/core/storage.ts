@@ -3,6 +3,7 @@ import type { MiningCandidate, SavedWord, WakaruConfig } from './types.js';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { resolveUserPath } from './config.js';
+import { escapeFormattedText, formattedTextToAnkiHtml } from './formatting.js';
 import {
   parseJsonText,
   parseWithSchema,
@@ -34,15 +35,12 @@ function ankiTags(word: SavedWord): string {
     .join(' ');
 }
 
-function frontHtml(word: SavedWord): string {
+function frontText(word: SavedWord): string {
   const sentence = word.sourceText.trim() || word.exampleJapanese;
-  return [
-    `<div class="wakaru-expression">${word.expression}</div>`,
-    `<div class="wakaru-sentence">${sentence}</div>`,
-  ].join('');
+  return `{${escapeFormattedText(word.expression)}|${escapeFormattedText(word.reading)}}\n${escapeFormattedText(sentence)}`;
 }
 
-function backHtml(word: SavedWord): string {
+function backText(word: SavedWord): string {
   const details = [
     word.reading,
     word.meaning,
@@ -51,12 +49,11 @@ function backHtml(word: SavedWord): string {
   ].filter(Boolean);
 
   return [
-    frontHtml(word),
-    '<hr>',
-    ...details.map((detail) => `<div>${detail}</div>`),
-    `<div>${word.exampleJapanese}</div>`,
-    `<div>${word.exampleEnglish}</div>`,
-  ].join('');
+    frontText(word),
+    ...details.map(escapeFormattedText),
+    escapeFormattedText(word.exampleJapanese),
+    escapeFormattedText(word.exampleEnglish),
+  ].join('\n');
 }
 
 function legacyBack(word: SavedWord): string {
@@ -67,31 +64,32 @@ function legacyBack(word: SavedWord): string {
     word.nuance ? `Nuance: ${word.nuance}` : '',
   ]
     .filter(Boolean)
-    .join('<br>');
+    .map(escapeFormattedText)
+    .join('\n');
 }
 
 function fallbackFieldValue(word: SavedWord, fieldName: string): string {
   const normalized = fieldName.trim().toLowerCase();
-  if (normalized === 'front') return frontHtml(word);
-  if (normalized === 'back') return backHtml(word);
-  if (normalized === 'tags') return ankiTags(word);
-  if (normalized === 'expression') return word.expression;
-  if (normalized === 'reading') return word.reading;
-  if (normalized === 'meaning') return word.meaning;
+  if (normalized === 'front') return frontText(word);
+  if (normalized === 'back') return backText(word);
+  if (normalized === 'tags') return escapeFormattedText(ankiTags(word));
+  if (normalized === 'expression') return escapeFormattedText(word.expression);
+  if (normalized === 'reading') return escapeFormattedText(word.reading);
+  if (normalized === 'meaning') return escapeFormattedText(word.meaning);
   if (normalized === 'contextmeaning' || normalized === 'context meaning') {
-    return word.contextMeaning;
+    return escapeFormattedText(word.contextMeaning);
   }
   if (normalized === 'partofspeech' || normalized === 'part of speech') {
-    return word.partOfSpeech;
+    return escapeFormattedText(word.partOfSpeech);
   }
   if (normalized === 'examplejapanese' || normalized === 'example japanese') {
-    return word.exampleJapanese;
+    return escapeFormattedText(word.exampleJapanese);
   }
   if (normalized === 'exampleenglish' || normalized === 'example english') {
-    return word.exampleEnglish;
+    return escapeFormattedText(word.exampleEnglish);
   }
   if (normalized === 'sourcetext' || normalized === 'source text') {
-    return word.sourceText;
+    return escapeFormattedText(word.sourceText);
   }
   if (normalized === 'legacyback' || normalized === 'legacy back') {
     return legacyBack(word);
@@ -107,13 +105,14 @@ function fieldValue(word: SavedWord, fieldName: string): string {
 function toAnkiLine(config: WakaruConfig, word: SavedWord): string {
   return config.anki.fields
     .map((field) => fieldValue(word, field.name))
+    .map((value) => formattedTextToAnkiHtml(value, config.anki.formatting))
     .map(sanitizeField)
     .join('\t');
 }
 
 export async function loadSavedWords(
   config: WakaruConfig
-): Promise<readonly SavedWord[]> {
+): Promise<SavedWordsLoadResult> {
   const dir = await ensureStorageDir(config);
   try {
     const raw = await readFile(join(dir, WORDS_FILE), 'utf8');
@@ -122,12 +121,25 @@ export async function loadSavedWords(
       `Saved words file ${join(dir, WORDS_FILE)}`
     );
     if (!parsed.success) throw parsed.error;
-    const words = parseWithSchema(
-      savedWordsSchema,
-      parsed.value,
-      `Saved words file ${join(dir, WORDS_FILE)}`
-    );
-    return words;
+    if (!Array.isArray(parsed.value)) {
+      parseWithSchema(
+        savedWordsSchema,
+        parsed.value,
+        `Saved words file ${join(dir, WORDS_FILE)}`
+      );
+    }
+    const words: SavedWord[] = [];
+    const rejectedEntries: unknown[] = [];
+    for (const entry of parsed.value as unknown[]) {
+      const result = savedWordSchema.safeParse(entry);
+      if (result.success) words.push(result.data);
+      else rejectedEntries.push(entry);
+    }
+    return {
+      words,
+      failedCount: rejectedEntries.length,
+      rejectedEntries,
+    };
   } catch (error) {
     if (
       error &&
@@ -135,11 +147,17 @@ export async function loadSavedWords(
       'code' in error &&
       error.code === 'ENOENT'
     ) {
-      return [];
+      return { words: [], failedCount: 0, rejectedEntries: [] };
     }
     throw error;
   }
 }
+
+export type SavedWordsLoadResult = Readonly<{
+  words: readonly SavedWord[];
+  failedCount: number;
+  rejectedEntries: readonly unknown[];
+}>;
 
 export function candidateToSavedWord(
   candidate: MiningCandidate,
@@ -167,10 +185,11 @@ export async function saveWord(
   word: SavedWord
 ): Promise<void> {
   const validWord = parseWithSchema(savedWordSchema, word, 'Saved word');
-  const existing = await loadSavedWords(config);
+  const loaded = await loadSavedWords(config);
   const next = [
     validWord,
-    ...existing.filter((item) => item.id !== validWord.id),
+    ...loaded.words.filter((item) => item.id !== validWord.id),
+    ...loaded.rejectedEntries,
   ];
   const dir = await ensureStorageDir(config);
   await writeFile(

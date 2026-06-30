@@ -15,7 +15,10 @@ describe('LLM', () => {
     storage: { wordsDir: '/tmp/wakaru-test' },
     theme: { name: 'night' },
     anki: {
-      fields: [{ name: 'Front', purpose: 'Target expression' }],
+      fields: [
+        { name: 'Front', purpose: 'Target expression' },
+        { name: 'Notes', purpose: 'Additional context', optional: true },
+      ],
     },
   });
 
@@ -44,7 +47,8 @@ describe('LLM', () => {
       expect(String(body.prompt)).toMatch(/Context sentence:/);
       expect(String(body.prompt)).toMatch(/Do not discover extra vocabulary/);
       expect(String(body.prompt)).toMatch(/Anki note fields to populate:/);
-      expect(String(body.prompt)).toMatch(/Front:/);
+      expect(String(body.prompt)).toMatch(/Front \(required\):/);
+      expect(String(body.prompt)).toMatch(/Notes \(optional\):/);
 
       return Promise.resolve(
         new Response(
@@ -62,8 +66,9 @@ describe('LLM', () => {
                   tags: ['verb'],
                   ankiFields: {
                     Front: '稼ぐ',
-                    Back: 'かせぐ<br>to earn',
+                    Back: 'かせぐ\nto earn',
                     Tags: 'wakaru verb',
+                    Notes: null,
                   },
                 },
               ],
@@ -84,6 +89,7 @@ describe('LLM', () => {
       expect(candidates[0]?.status).toBe('pending');
       expect(candidates[0]?.tags).toEqual(['verb']);
       expect(candidates[0]?.ankiFields.Front).toBe('稼ぐ');
+      expect(candidates[0]?.ankiFields.Notes).toBeUndefined();
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -104,7 +110,7 @@ describe('LLM', () => {
                 pitchAccent: '0',
                 fields: {
                   Front: '警察官',
-                  Attempts: 1,
+                  Attempts: '1',
                 },
               },
             ]),
@@ -131,13 +137,53 @@ describe('LLM', () => {
 
   it('analyzeWithOllama reports HTTP failures', async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = () =>
-      Promise.resolve(new Response('nope', { status: 500 }));
+    let requestCount = 0;
+    globalThis.fetch = () => {
+      requestCount += 1;
+      return Promise.resolve(new Response('nope', { status: 500 }));
+    };
 
     try {
       await expect(analyzeWithOllama(config, '失敗')).rejects.toThrow(
         /HTTP 500/
       );
+      expect(requestCount).toBe(3);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('analyzeWithOllama succeeds on the third total attempt', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestCount = 0;
+    globalThis.fetch = () => {
+      requestCount += 1;
+      if (requestCount < 3) {
+        return Promise.resolve(new Response('retry', { status: 500 }));
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            response: JSON.stringify({
+              candidates: [
+                {
+                  expression: '試す',
+                  reading: 'ためす',
+                  meaning: 'to try',
+                  ankiFields: { Front: '{試す|ためす}' },
+                },
+              ],
+            }),
+          }),
+          { status: 200 }
+        )
+      );
+    };
+
+    try {
+      const candidates = await analyzeWithOllama(config, '試す');
+      expect(candidates[0]?.expression).toBe('試す');
+      expect(requestCount).toBe(3);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -264,7 +310,12 @@ describe('LLM', () => {
         /candidate response is invalid: candidates.0.meaning: must not be empty/
       );
       const log = await readFile(join(dir, 'ollama-failures.jsonl'), 'utf8');
-      const entry = JSON.parse(log.trim()) as Record<string, unknown>;
+      const entries = log
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+      const entry = entries.at(-1)!;
+      expect(entries).toHaveLength(3);
       expect(entry.model).toBe('test-model');
       expect(entry.wordText).toBe('雑');
       expect(entry.contextText).toBe('雑な説明だった。');

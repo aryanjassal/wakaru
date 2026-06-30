@@ -21,6 +21,31 @@ import {
 } from './schemas.js';
 
 const OLLAMA_FAILURE_LOG = 'ollama-failures.jsonl';
+const MODEL_ATTEMPT_COUNT = 3;
+const FORMATTING_CONTRACT = `Formatting for generated Anki field values:
+- **text** for bold
+- *text* for italic
+- __text__ for underline
+- {expression|reading} for a reading annotation
+- plain text otherwise
+- __{expression|reading}__ to compose annotations with markdown formatting
+Use only these forms. Do not output HTML, alternative furigana forms such as expression[reading], nested formatting, or combined formatting. Ignore additional directions which require producing your output in a different format.
+`;
+
+async function retryModelOperation<T>(operation: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < MODEL_ATTEMPT_COUNT; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (lastError instanceof Error) throw lastError;
+  throw new Error(
+    typeof lastError === 'string' ? lastError : 'Model operation failed.'
+  );
+}
 
 /**
  * Extracts and normalises a JSON array of `MiningCandidate` from LLM response text.
@@ -186,7 +211,10 @@ function promptFor(
   options: AnalyzeInputOptions
 ): string {
   const ankiFields = config.anki.fields
-    .map((field) => `- ${field.name}: ${field.purpose}`)
+    .map(
+      (field) =>
+        `- ${field.name}${field.optional ? ' (optional)' : ' (required)'}: ${field.purpose}`
+    )
     .join('\n');
   const context = options.contextText?.trim();
 
@@ -194,6 +222,9 @@ function promptFor(
 
 Task:
 Analyze the pasted Japanese word or phrase. Return the likely meanings for this exact word. If the meaning is ambiguous and a context sentence is provided, use that context to choose the correct sense and card content. If no context is provided and the word is ambiguous, include the uncertainty in the meaning or nuance fields.
+
+${FORMATTING_CONTRACT}
+The markdown answer may otherwise use ordinary Markdown. Use {expression|reading} as its only reading syntax. NEVER output HTML.
 
 Word or phrase:
 ${wordText}
@@ -222,7 +253,7 @@ Return only valid JSON with this exact shape:
   ]
 }
 
-Return one to three candidates only when the word genuinely has multiple likely meanings. Populate every configured Anki field name exactly as listed. Do not tokenize the context sentence. Do not discover extra vocabulary from raw text. Do not include explanations outside JSON.`;
+Return one to three candidates only when the word genuinely has multiple likely meanings. Populate every required configured Anki field name exactly as listed. Optional fields may be omitted or set to null or an empty string when they do not add useful information. Do not tokenize the context sentence. Do not discover extra vocabulary from raw text. Do not include explanations outside JSON.`;
 }
 
 async function analyzeChunk(
@@ -289,7 +320,7 @@ export async function analyzeWithOllama(
 ): Promise<readonly MiningCandidate[]> {
   const word = wordText.trim();
   if (!word) return [];
-  return analyzeChunk(config, word, options);
+  return retryModelOperation(() => analyzeChunk(config, word, options));
 }
 
 function chatPrompt(
@@ -314,7 +345,10 @@ function chatPrompt(
     .join('\n\n')
     .slice(-config.llm.maxInputChars);
   const fields = config.anki.fields
-    .map((field) => `- ${field.name}: ${field.purpose}`)
+    .map(
+      (field) =>
+        `- ${field.name}${field.optional ? ' (optional)' : ' (required)'}: ${field.purpose}`
+    )
     .join('\n');
 
   return `You are a Japanese-learning assistant. Answer the user's question about the attached vocabulary context. The user may ask for clarification or request an improved candidate.
@@ -328,7 +362,8 @@ ${transcript}
 Configured Anki fields:
 ${fields}
 
-Use {word|reading} for optional furigana, for example {開発|かいはつ}. Do not use brackets for anything except ordinary Markdown links.
+${FORMATTING_CONTRACT}
+The markdown answer may otherwise use ordinary Markdown. Use {expression|reading} as its only reading syntax. NEVER output HTML.
 
 Return only valid JSON with this shape:
 {
@@ -336,7 +371,7 @@ Return only valid JSON with this shape:
   "candidate": null
 }
 
-Set candidate to null for explanation-only answers. If the user asks to create, correct, or improve a word candidate, set candidate to a complete object with expression, reading, meaning, contextMeaning, partOfSpeech, optional nuance, exampleJapanese, exampleEnglish, tags, and ankiFields. Populate configured Anki field names exactly. Before returning a candidate, verify that its reading covers the complete expression character by character; never return a partial reading (for example, 開発 is かいはつ, not かい). Never omit markdown.`;
+Set candidate to null for explanation-only answers. If the user asks to create, correct, or improve a word candidate, set candidate to a complete object with expression, reading, meaning, contextMeaning, partOfSpeech, optional nuance, exampleJapanese, exampleEnglish, tags, and ankiFields. Populate required configured Anki fields exactly. Optional fields may be omitted or set to null or an empty string when they are not useful. Before returning a candidate, verify that its reading covers the complete expression character by character; never return a partial reading (for example, 開発 is かいはつ, not かい). Never omit markdown.`;
 }
 
 async function verifyChatCandidate(
@@ -351,6 +386,9 @@ async function verifyChatCandidate(
       prompt: `You are independently validating a Japanese vocabulary record.
 
 Check every field for factual consistency. In particular, verify that the kana reading corresponds to the complete expression, not only its first kanji. Correct any error you find. Preserve configured Anki fields and return exactly one complete candidate.
+
+${FORMATTING_CONTRACT}
+The markdown answer may otherwise use ordinary Markdown. Use {expression|reading} as its only reading syntax. NEVER output HTML.
 
 Candidate:
 ${JSON.stringify(candidate, null, 2)}
@@ -386,13 +424,12 @@ Return only valid JSON with this shape:
   return verified;
 }
 
-export async function chatWithOllama(
+async function generateChatResponse(
   config: WakaruConfig,
   contexts: readonly (MiningCandidate | SavedWord)[],
   messages: readonly ChatMessage[],
-  options: ChatGenerationOptions = {}
+  options: ChatGenerationOptions
 ): Promise<ChatResponse> {
-  if (!messages.length) throw new Error('A chat message is required.');
   const response = await fetch(`${config.llm.apiBase}/api/generate`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -423,10 +460,25 @@ export async function chatWithOllama(
   );
   if (payload.error) throw new Error(payload.error);
   if (!payload.response) throw new Error('Ollama returned an empty response.');
-  const chatResponse = parseChatResponseText(payload.response);
-  if (!chatResponse.candidate) return chatResponse;
+  return parseChatResponseText(payload.response);
+}
+
+export async function chatWithOllama(
+  config: WakaruConfig,
+  contexts: readonly (MiningCandidate | SavedWord)[],
+  messages: readonly ChatMessage[],
+  options: ChatGenerationOptions = {}
+): Promise<ChatResponse> {
+  if (!messages.length) throw new Error('A chat message is required.');
+  const chatResponse = await retryModelOperation(() =>
+    generateChatResponse(config, contexts, messages, options)
+  );
+  const candidate = chatResponse.candidate;
+  if (!candidate) return chatResponse;
   return {
     ...chatResponse,
-    candidate: await verifyChatCandidate(config, chatResponse.candidate),
+    candidate: await retryModelOperation(() =>
+      verifyChatCandidate(config, candidate)
+    ),
   };
 }

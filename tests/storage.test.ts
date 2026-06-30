@@ -7,6 +7,7 @@ import {
   candidateToSavedWord,
   loadSavedWords,
   saveWord,
+  writeAnkiImport,
 } from '@/core/storage.js';
 import { getTestConfig, createTestCandidate } from './config.js';
 
@@ -36,13 +37,14 @@ describe('Storage', () => {
     try {
       const word = candidateToSavedWord(candidate, '相手への配慮が必要だ。');
       await saveWord(config, word);
+      await writeAnkiImport(config, [word]);
 
-      const saved = await loadSavedWords(config);
+      const loaded = await loadSavedWords(config);
       const tsv = await readFile(ankiImportPath(config), 'utf8');
 
-      expect(saved.length).toBe(1);
-      expect(saved[0]?.expression).toBe('配慮');
-      expect(tsv).toMatch(/wakaru-expression/);
+      expect(loaded.words.length).toBe(1);
+      expect(loaded.words[0]?.expression).toBe('配慮');
+      expect(tsv).toMatch(/<ruby>/);
       expect(tsv).toMatch(/配慮/);
       expect(tsv).toMatch(/はいりょ/);
     } finally {
@@ -73,29 +75,28 @@ describe('Storage', () => {
       exampleEnglish: 'Yes, I am a police officer.',
       tags: ['occupation'],
       ankiFields: {
-        CardFront: '<div>警察官</div>',
-        CardBack: '<div>けいさつかん</div>',
+        CardFront: '**警察官**',
+        CardBack: '__けいさつかん__',
         Tags: 'wakaru noun occupation',
       },
       status: 'pending',
     });
 
     try {
-      await saveWord(
-        config,
-        candidateToSavedWord(candidate, 'はい、私は警察官です。')
-      );
+      const word = candidateToSavedWord(candidate, 'はい、私は警察官です。');
+      await saveWord(config, word);
+      await writeAnkiImport(config, [word]);
       const tsv = await readFile(ankiImportPath(config), 'utf8');
 
       expect(tsv.trim()).toBe(
-        '<div>警察官</div>\t<div>けいさつかん</div>\twakaru noun occupation'
+        '<strong>警察官</strong>\t<u>けいさつかん</u>\twakaru noun occupation'
       );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  it('loading saved words reports readable validation errors', async () => {
+  it('loading saved words omits invalid entries without deleting them', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'wakaru-storage-invalid-'));
     const config = getTestConfig({
       storage: { wordsDir: dir },
@@ -111,9 +112,13 @@ describe('Storage', () => {
         'utf8'
       );
 
-      await expect(loadSavedWords(config)).rejects.toThrow(
-        /Saved words file .* is invalid: 0.expression: must not be empty/
-      );
+      const loaded = await loadSavedWords(config);
+      expect(loaded.words).toEqual([]);
+      expect(loaded.failedCount).toBe(1);
+      expect(loaded.rejectedEntries).toHaveLength(1);
+      expect(
+        JSON.parse(await readFile(join(dir, 'words.json'), 'utf8'))
+      ).toHaveLength(1);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

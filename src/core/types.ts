@@ -1,3 +1,5 @@
+import type { AnkiFormattingConfig } from './formatting-types.js';
+
 export type ThemeName = 'night';
 
 export type MiningCandidateStatus = 'pending' | 'added';
@@ -5,6 +7,7 @@ export type MiningCandidateStatus = 'pending' | 'added';
 export type AnkiFieldConfig = Readonly<{
   name: string;
   purpose: string;
+  optional?: boolean | undefined;
 }>;
 
 export type AnkiFieldValues = Readonly<Record<string, string>>;
@@ -60,5 +63,11 @@ export type WakaruConfig = Readonly<{
   }>;
   anki: Readonly<{
     fields: readonly AnkiFieldConfig[];
+    formatting: AnkiFormattingConfig;
   }>;
 }>;
+
+export type {
+  AnkiFormattingConfig,
+  FormattedTextToken,
+} from './formatting-types.js';

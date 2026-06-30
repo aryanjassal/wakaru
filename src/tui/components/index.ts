@@ -8,3 +8,4 @@ export { Loader } from './primitives/loader';
 // Widgets
 export { CommandPalette } from './widgets/command-palette';
 export { WordDetails } from './widgets/word-details';
+export { FormattedText } from './widgets/formatted-text';

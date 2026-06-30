@@ -1,6 +1,6 @@
 import type { TuiRouteTarget, ChatContextItem } from '../lib/types.js';
 
-import { Button, Separator, WordDetails } from '../components/index.js';
+import { Button, WordDetails } from '../components/index.js';
 import { useTuiApp } from '../lib/context/app.js';
 import { colorscheme } from '../lib/theme.js';
 

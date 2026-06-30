@@ -56,10 +56,10 @@ describe('Chat furigana rendering', () => {
     const markdown = 'Use {開発|かいはつ} and 警察官[けいさつかん].';
 
     expect(preprocessChatMarkdown(markdown, false)).toBe(
-      'Use 開発 and 警察官.'
+      'Use 開発 and 警察官[けいさつかん].'
     );
     expect(preprocessChatMarkdown(markdown, true)).toBe(
-      'Use 開発 `[かいはつ]` and 警察官 `[けいさつかん]`.'
+      'Use 開発 `[かいはつ]` and 警察官[けいさつかん].'
     );
   });
 });

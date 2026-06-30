@@ -1,6 +1,7 @@
 import type { MiningCandidate, SavedWord, WakaruConfig } from './types.js';
 
 import { z } from 'zod/v4';
+import { parseFormattedText } from './formatting.js';
 
 const nonEmptyString = z.string().trim().min(1, 'must not be empty');
 const optionalNonEmptyString = z
@@ -14,28 +15,100 @@ const stringList = z
   .default([])
   .catch([])
   .transform((items) => [...new Set(items)]);
+export const formattedTextSchema = nonEmptyString.superRefine(
+  (value, context) => {
+    try {
+      parseFormattedText(value);
+    } catch (error) {
+      context.addIssue({
+        code: 'custom',
+        message: error instanceof Error ? error.message : String(error),
+        input: value,
+      });
+    }
+  }
+);
+
+const generatedAnkiFieldValue = z.preprocess(
+  (value) => (typeof value === 'string' && !value.trim() ? null : value),
+  formattedTextSchema.nullable()
+);
+
 const generatedAnkiFields = z
-  .record(z.string(), z.unknown())
+  .record(z.string(), generatedAnkiFieldValue)
   .default({})
-  .catch({})
-  .transform((fields): Record<string, string> => {
-    const entries = Object.entries(fields)
-      .filter(([key, value]) => key.trim() && value != null)
-      .map(([key, value]) => [key, String(value).trim()] as const)
-      .filter(([, value]) => value);
-    return Object.fromEntries(entries);
+  .transform(
+    (fields): Record<string, string> =>
+      Object.fromEntries(
+        Object.entries(fields).filter((entry): entry is [string, string] =>
+          Boolean(entry[0].trim() && entry[1]?.trim())
+        )
+      )
+  );
+
+export const DEFAULT_ANKI_FORMATTING = {
+  boldTemplate: '<strong>{{text}}</strong>',
+  italicTemplate: '<em>{{text}}</em>',
+  underlineTemplate: '<u>{{text}}</u>',
+  readingTemplate: '<ruby>{{expression}}<rt>{{reading}}</rt></ruby>',
+  lineBreak: '<br>',
+} as const;
+
+const formattingTemplate = z.string().min(1, 'must not be empty');
+const ankiFormattingSchema = z
+  .object({
+    boldTemplate: formattingTemplate.optional(),
+    italicTemplate: formattingTemplate.optional(),
+    underlineTemplate: formattingTemplate.optional(),
+    readingTemplate: formattingTemplate.optional(),
+    lineBreak: formattingTemplate.optional(),
+  })
+  .strict()
+  .transform((formatting) => ({
+    boldTemplate:
+      formatting.boldTemplate ?? DEFAULT_ANKI_FORMATTING.boldTemplate,
+    italicTemplate:
+      formatting.italicTemplate ?? DEFAULT_ANKI_FORMATTING.italicTemplate,
+    underlineTemplate:
+      formatting.underlineTemplate ?? DEFAULT_ANKI_FORMATTING.underlineTemplate,
+    readingTemplate:
+      formatting.readingTemplate ?? DEFAULT_ANKI_FORMATTING.readingTemplate,
+    lineBreak: formatting.lineBreak ?? DEFAULT_ANKI_FORMATTING.lineBreak,
+  }))
+  .superRefine((formatting, context) => {
+    const required = [
+      ['boldTemplate', formatting.boldTemplate, ['{{text}}']],
+      ['italicTemplate', formatting.italicTemplate, ['{{text}}']],
+      ['underlineTemplate', formatting.underlineTemplate, ['{{text}}']],
+      [
+        'readingTemplate',
+        formatting.readingTemplate,
+        ['{{expression}}', '{{reading}}'],
+      ],
+    ] as const;
+    for (const [path, template, placeholders] of required) {
+      for (const placeholder of placeholders) {
+        if (template.includes(placeholder)) continue;
+        context.addIssue({
+          code: 'custom',
+          path: [path],
+          message: `must include ${placeholder}`,
+          input: formatting,
+        });
+      }
+    }
   });
 
 export const DEFAULT_ANKI_FIELDS = [
   {
     name: 'Front',
     purpose:
-      'Recognition card front. HTML is allowed. Show the target expression prominently and include the source Japanese sentence.',
+      'Recognition card front. Show the target expression prominently with its reading and include the source Japanese sentence.',
   },
   {
     name: 'Back',
     purpose:
-      'Recognition card back. HTML is allowed. Include reading, meaning, part of speech, the Japanese sentence, and English translation.',
+      'Recognition card back. Include reading, meaning, part of speech, the Japanese sentence, and English translation.',
   },
   {
     name: 'Tags',
@@ -59,6 +132,7 @@ export const DEFAULT_WAKARU_CONFIG: WakaruConfig = {
   },
   anki: {
     fields: [...DEFAULT_ANKI_FIELDS],
+    formatting: { ...DEFAULT_ANKI_FORMATTING },
   },
 };
 
@@ -66,6 +140,7 @@ const ankiFieldConfigSchema = z
   .object({
     name: nonEmptyString,
     purpose: nonEmptyString,
+    optional: z.boolean().optional(),
   })
   .strict();
 
@@ -95,6 +170,7 @@ export const wakaruConfigSchema = z
     anki: z
       .object({
         fields: z.array(ankiFieldConfigSchema).min(1).optional(),
+        formatting: ankiFormattingSchema.optional(),
       })
       .strict()
       .optional(),
@@ -119,6 +195,9 @@ export const wakaruConfigSchema = z
     },
     anki: {
       fields: config.anki?.fields ?? [...DEFAULT_WAKARU_CONFIG.anki.fields],
+      formatting: config.anki?.formatting ?? {
+        ...DEFAULT_WAKARU_CONFIG.anki.formatting,
+      },
     },
   })) satisfies z.ZodType<WakaruConfig>;
 

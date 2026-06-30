@@ -3,7 +3,7 @@ import { createRoot } from '@opentui/react';
 import { loadConfig } from '@/core/config';
 import { loadSavedWords } from '@/core/storage';
 import { TuiApp } from './app';
-import { createInitialTuiState } from './lib/state';
+import { addToast, createInitialTuiState, createToast } from './lib/state';
 import { colorscheme } from './lib/theme';
 
 const UI_FPS_CAP = 60;
@@ -19,16 +19,25 @@ function clampViewportAxis(
 }
 
 const config = loadConfig();
-const savedWords = await loadSavedWords(config);
-const initialState = createInitialTuiState(
+const loadedWords = await loadSavedWords(config);
+let initialState = createInitialTuiState(
   config,
   Date.now(),
   {
     cols: clampViewportAxis(process.stdout.columns, 120),
     rows: clampViewportAxis(process.stdout.rows, 40),
   },
-  savedWords
+  loadedWords.words
 );
+if (loadedWords.failedCount) {
+  initialState = addToast(
+    initialState,
+    createToast(
+      `${loadedWords.failedCount} saved word${loadedWords.failedCount === 1 ? '' : 's'} failed to load.`,
+      'warning'
+    )
+  );
+}
 
 let stopping = false;
 let stopCode = 0;

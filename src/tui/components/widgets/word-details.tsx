@@ -2,6 +2,7 @@ import type { ChatContextItem } from '@/tui/lib/types.js';
 
 import { colorscheme } from '@/tui/lib/theme.js';
 import { Separator } from '../primitives/separator.js';
+import { FormattedText } from './formatted-text.js';
 
 export function WordDetails({ item }: Readonly<{ item: ChatContextItem }>) {
   const metadata =
@@ -47,7 +48,7 @@ export function WordDetails({ item }: Readonly<{ item: ChatContextItem }>) {
         </box>
         <box>
           {Object.values(word.ankiFields).map((v, i) => (
-            <text key={i}>{v}</text>
+            <FormattedText key={i} value={v} />
           ))}
         </box>
       </box>

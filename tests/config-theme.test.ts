@@ -22,7 +22,7 @@ describe('Config and Theme', () => {
             anki: {
               fields: [
                 { name: 'Front', purpose: 'front field' },
-                { name: 'Back', purpose: 'back field' },
+                { name: 'Back', purpose: 'back field', optional: true },
               ],
             },
           })
@@ -42,6 +42,10 @@ describe('Config and Theme', () => {
         'Front',
         'Back',
       ]);
+      expect(config.anki.formatting.boldTemplate).toBe(
+        '<strong>{{text}}</strong>'
+      );
+      expect(config.anki.fields[1]?.optional).toBe(true);
     } finally {
       if (previous === undefined) {
         delete process.env.WAKARU_CONFIG;
