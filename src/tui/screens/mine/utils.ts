@@ -56,23 +56,6 @@ export function markCandidate(
   };
 }
 
-export function toggleCandidateInbox(
-  state: MineState,
-  candidateId: string
-): MineState {
-  return {
-    ...state,
-    candidates: state.candidates.map((candidate) =>
-      candidate.id === candidateId
-        ? {
-            ...candidate,
-            status: candidate.status === 'skipped' ? 'pending' : 'skipped',
-          }
-        : candidate
-    ),
-  };
-}
-
 export function clearMineState(state: MineState): MineState {
   return {
     // Reset base state
@@ -85,10 +68,15 @@ export function clearMineState(state: MineState): MineState {
   };
 }
 
+// Return a human-readable string related to the candidate state
+// TODO: kind of irrelevant. just remove
 function candidateStatus(candidate: MiningCandidate): string {
-  if (candidate.status === 'added') return 'saved';
-  if (candidate.status === 'skipped') return 'off';
-  return 'inbox';
+  switch (candidate.status) {
+    case 'added':
+      return 'saved';
+    case 'pending':
+      return 'inbox';
+  }
 }
 
 export function candidateRows(state: MineState): string {

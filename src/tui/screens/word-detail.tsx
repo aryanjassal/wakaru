@@ -22,7 +22,7 @@ export function WordDetailScreen({
       borderStyle="single"
       borderColor={colorscheme.gutter}
       padding={1}
-      title={` ${item.value.expression} `}
+      title=" Details "
       titleColor={colorscheme.primary}
     >
       <box flexDirection="row" columnGap={2}>
@@ -45,7 +45,6 @@ export function WordDetailScreen({
           }
         />
       </box>
-      <Separator />
       <WordDetails item={item} />
     </box>
   );

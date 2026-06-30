@@ -10,7 +10,7 @@ export type {
   WakaruConfig,
 } from '@/core/types.js';
 
-export type TuiMiningStatus = 'idle' | 'analyzing' | 'saving' | 'error';
+export type TuiMiningStatus = 'idle' | 'analysing' | 'saving' | 'error';
 
 export type TuiToast = Readonly<{
   id: string;

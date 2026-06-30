@@ -64,10 +64,11 @@ function canUseGlobalKey(renderer: CliRenderer, key: KeyEvent): boolean {
 function ShellCommands() {
   const { navigate, navigateOffset, stop, toggleCommandPalette } = useTuiApp();
 
+  // TODO: bring back ctrl-c termination and add ctrl-shift-c copying
   useTuiCommand({
     id: SHELL_COMMAND_IDS.appQuit,
     title: 'Quit',
-    keybindings: [{ key: 'c', ctrl: true }, { key: 'q' }],
+    keybindings: [{ key: 'q' }],
     run: () => stop(),
   });
 

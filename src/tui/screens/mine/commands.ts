@@ -5,7 +5,7 @@ import type { SavedWord } from '@/tui/lib/types';
 import type { InputSnapshot, MineState } from './types';
 
 import { useCallback } from 'react';
-import { analyzeWithOllama } from '@/core/llm';
+import { analyzeWithOllama as analyseWithOllama } from '@/core/llm';
 import { candidateToSavedWord, saveWord } from '@/core/storage';
 import { useTuiApp, useTuiCommand } from '@/tui/lib/context/app';
 import { errorMessage, readClipboard } from '@/tui/lib/utils';
@@ -15,7 +15,6 @@ import {
   selectedCandidate,
   selectedIndex,
   setCandidates,
-  toggleCandidateInbox,
 } from './utils';
 
 // List of command identifiers implemented by this page. Simplifies command
@@ -32,7 +31,6 @@ export const MINE_COMMAND_IDS = {
   candidatePrevious: 'candidate.previous',
   candidateNext: 'candidate.next',
   candidateAddSelected: 'candidate.addSelected',
-  candidateSkipSelected: 'candidate.skipSelected',
 } as const;
 
 export type MineStateUpdater = (
@@ -46,6 +44,7 @@ export type MineCommandDeps = Readonly<{
   setMineState: MineStateUpdater;
 }>;
 
+// Register commands for the mine page
 export function useMineCommands({
   stateRef,
   contextRef,
@@ -54,14 +53,7 @@ export function useMineCommands({
 }: MineCommandDeps): void {
   const { addSavedWord, addToast, config, navigate } = useTuiApp();
 
-  // const currentInputSnapshot = useCallback((): InputSnapshot => {
-  //   return {
-  //     contextText:
-  //       contextRef.current?.plainText ?? stateRef.current.contextText,
-  //     wordText: wordRef.current?.value ?? stateRef.current.wordText,
-  //   };
-  // }, [contextRef, stateRef, wordRef]);
-
+  // Synchronise page state to input state
   const syncInputs = useCallback((): InputSnapshot => {
     const snapshot = {
       contextText: contextRef.current?.plainText ?? '',
@@ -74,6 +66,7 @@ export function useMineCommands({
     return snapshot;
   }, [contextRef, wordRef, setMineState]);
 
+  // Requires a candidate to be selected in order for a command to be usable
   const selectedCandidateRequired = useCallback((): TuiCommandAvailability => {
     if (!stateRef.current.selectedCandidateId) {
       return { status: 'disabled', reason: 'No word meaning is selected.' };
@@ -81,26 +74,28 @@ export function useMineCommands({
     return { status: 'available' };
   }, [stateRef]);
 
-  const analyzeWord = useCallback(async (): Promise<void> => {
+  // Use a LLM to analyse the selected word, including the context if provided
+  const analyseWord = useCallback(async (): Promise<void> => {
     const snapshot = syncInputs();
     const current = stateRef.current;
     const word = snapshot.wordText.trim();
     const contextText = snapshot.contextText.trim();
     if (
       !word ||
-      current.status === 'analyzing' ||
+      current.status === 'analysing' ||
       current.status === 'saving'
     ) {
       return;
     }
 
-    setMineState((state) => ({ ...state, status: 'analyzing' }));
+    setMineState((state) => ({ ...state, status: 'analysing' }));
 
+    // Analyse word if possible, otherwise bail out and inform user
     try {
-      const candidates = await analyzeWithOllama(config, word, { contextText });
+      const candidates = await analyseWithOllama(config, word, { contextText });
       setMineState((state) => setCandidates(state, candidates));
       addToast(
-        `Found ${candidates.length} meaning${candidates.length === 1 ? '' : 's'}.`,
+        `Found ${candidates.length} meaning${candidates.length === 1 ? '' : 's'}`,
         'success'
       );
     } catch (error) {
@@ -110,6 +105,7 @@ export function useMineCommands({
     }
   }, [addToast, config, setMineState, stateRef, syncInputs]);
 
+  // Add the selected candidate to inbox
   const addSelectedCandidate = useCallback(async (): Promise<void> => {
     const snapshot = syncInputs();
     const current = stateRef.current;
@@ -117,7 +113,6 @@ export function useMineCommands({
     if (
       !candidate ||
       candidate.status === 'added' ||
-      candidate.status === 'skipped' ||
       current.status === 'saving'
     ) {
       return;
@@ -143,19 +138,7 @@ export function useMineCommands({
     }
   }, [addSavedWord, addToast, config, setMineState, stateRef, syncInputs]);
 
-  const skipSelectedCandidate = useCallback((): void => {
-    const candidate = selectedCandidate(stateRef.current);
-    if (!candidate || candidate.status === 'added') return;
-
-    setMineState((state) => toggleCandidateInbox(state, candidate.id));
-    addToast(
-      candidate.status === 'skipped'
-        ? `${candidate.expression} back in inbox.`
-        : `${candidate.expression} removed from inbox.`,
-      candidate.status === 'skipped' ? 'info' : 'warning'
-    );
-  }, [addToast, setMineState, stateRef]);
-
+  // Clear the word input along with any related results
   const clearWord = useCallback((): void => {
     if (wordRef.current) wordRef.current.value = '';
     setMineState((state) => ({
@@ -164,6 +147,7 @@ export function useMineCommands({
     }));
   }, [setMineState, wordRef]);
 
+  // Clear the context sentence input along with any related results
   const clearContext = useCallback((): void => {
     if (contextRef.current) contextRef.current.clear();
     setMineState((state) => ({
@@ -172,42 +156,52 @@ export function useMineCommands({
     }));
   }, [setMineState, wordRef]);
 
+  // Paste clipboard contents into the word input. Note that the text replaces
+  // existing input.
   const pasteClipboardAsWord = useCallback((): void => {
     const text = readClipboard();
     if (!text) {
-      addToast('Clipboard is unavailable.', 'warning');
+      addToast('Clipboard unavailable', 'warning');
       return;
     }
-
     if (wordRef.current) wordRef.current.value = text;
     setMineState((state) => ({ ...state, wordText: text }));
   }, [addToast, setMineState, wordRef]);
 
+  // Paste clipboard contents into the context sentence input. Note that the
+  // text replaces existing input.
   const pasteClipboardAsContext = useCallback((): void => {
     const text = readClipboard();
     if (!text) {
-      addToast('Clipboard is unavailable.', 'warning');
+      addToast('Clipboard unavailable', 'warning');
       return;
     }
-
     if (contextRef.current) contextRef.current.setText(text);
     setMineState((state) => ({ ...state, contextText: text }));
   }, [addToast, setMineState, contextRef]);
 
+  // Select the candidate at the selected relative offset, i.e. the previous
+  // or next candidate.
   const selectCandidateOffset = useCallback(
     (offset: 1 | -1): void => {
+      // Get index of current selected candidate
       const current = stateRef.current;
       if (!current.candidates.length) return;
       const index = selectedIndex(
         current.candidates,
         current.selectedCandidateId
       );
-      const safeIndex = index < 0 ? 0 : index;
+
+      // Start from first candidate if no selection exists
       const next =
         current.candidates[
-          (safeIndex + offset + current.candidates.length) %
-            current.candidates.length
+          index < 0
+            ? 0
+            : (index + offset + current.candidates.length) %
+              current.candidates.length
         ];
+
+      // Update state
       setMineState((state) => ({
         ...state,
         selectedCandidateId: next?.id ?? null,
@@ -216,14 +210,17 @@ export function useMineCommands({
     [setMineState, stateRef]
   );
 
+  // Toggle the visibility of the details section for the selected candidate
   const toggleDetails = useCallback((): void => {
     setMineState((state) => ({ ...state, showDetails: !state.showDetails }));
   }, [setMineState]);
 
+  // Toggle the visibility of the context sentence input
   const toggleContext = useCallback((): void => {
     setMineState((state) => ({ ...state, showContext: !state.showContext }));
   }, [setMineState]);
 
+  // Navigate to the Chat page with the selected candidate added as context
   const chatSelected = useCallback((): void => {
     const candidate = selectedCandidate(stateRef.current);
     if (!candidate) return;
@@ -234,11 +231,13 @@ export function useMineCommands({
     });
   }, [navigate, stateRef]);
 
+  // Register commands
+
   useTuiCommand({
     id: MINE_COMMAND_IDS.analyzeWord,
     title: 'Analyze word',
     keybindings: [{ key: 'a', ctrl: true }],
-    run: analyzeWord,
+    run: analyseWord,
   });
 
   useTuiCommand({
@@ -303,14 +302,6 @@ export function useMineCommands({
     keybindings: [{ key: 'return' }],
     availability: selectedCandidateRequired,
     run: addSelectedCandidate,
-  });
-
-  useTuiCommand({
-    id: MINE_COMMAND_IDS.candidateSkipSelected,
-    title: 'Skip selected candidate',
-    keybindings: [{ key: 'x' }],
-    availability: selectedCandidateRequired,
-    run: skipSelectedCandidate,
   });
 
   useTuiCommand({

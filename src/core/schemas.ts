@@ -198,7 +198,7 @@ export const miningCandidateSchema = z
     aliasCandidateFields,
     rawCandidateSchema.extend({
       id: nonEmptyString,
-      status: z.enum(['pending', 'added', 'skipped']),
+      status: z.enum(['pending', 'added']),
     })
   )
   .transform((candidate) => ({

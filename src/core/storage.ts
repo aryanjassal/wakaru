@@ -178,7 +178,8 @@ export async function saveWord(
     `${JSON.stringify(next, null, 2)}\n`,
     'utf8'
   );
-  await writeAnkiImport(config, next);
+  // // Writing Anki-exportable file should be a manual operation
+  // await writeAnkiImport(config, next);
 }
 
 export async function writeAnkiImport(

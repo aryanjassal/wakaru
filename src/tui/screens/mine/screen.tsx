@@ -14,8 +14,8 @@ import { usePersistentRouteState } from '@/tui/lib/context/app';
 
 function MineStatus({ status }: Readonly<{ status: MineState['status'] }>) {
   switch (status) {
-    case 'analyzing':
-      return <Loader label="ANALYZING" />;
+    case 'analysing':
+      return <Loader label="ANALYSING" />;
     case 'saving':
       return <text height={1} fg={colorscheme.info} content="SAVING" />;
     case 'error':

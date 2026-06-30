@@ -1,6 +1,6 @@
 export type ThemeName = 'night';
 
-export type MiningCandidateStatus = 'pending' | 'added' | 'skipped';
+export type MiningCandidateStatus = 'pending' | 'added';
 
 export type AnkiFieldConfig = Readonly<{
   name: string;

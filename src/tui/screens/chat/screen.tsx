@@ -427,7 +427,7 @@ export function ChatScreen({
           initialValue={state.prompt}
           placeholder="Ask about attached words or type / for commands"
           wrapMode="word"
-          keyBindings={[{ name: 'return', ctrl: true, action: 'submit' }]}
+          keyBindings={[{ name: 'return', action: 'submit' }]}
           onContentChange={() => queueMicrotask(refreshComposer)}
           onCursorChange={() => queueMicrotask(refreshComposer)}
           onBlur={() => setCommandFragment(null)}
@@ -460,9 +460,11 @@ export function ChatScreen({
                   ? (index + 1) % matchingCommands.length
                   : 0
               );
-            } else if (key.name === 'return' && liveCommand) {
-              key.preventDefault();
-              runSlashCommand();
+            } else if (key.name === 'return') {
+              if (liveCommand) {
+                key.preventDefault();
+                runSlashCommand();
+              }
             } else if (
               key.name === 'backspace' &&
               !(composerRef.current?.plainText ?? '') &&
