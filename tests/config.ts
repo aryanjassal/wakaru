@@ -8,7 +8,6 @@ import {
 type TestConfigOverrides = Readonly<{
   llm?: Partial<WakaruConfig['llm']>;
   storage?: Partial<WakaruConfig['storage']>;
-  theme?: Partial<WakaruConfig['theme']>;
   anki?: Partial<WakaruConfig['anki']>;
 }>;
 
@@ -24,10 +23,6 @@ export function getTestConfig(
     storage: {
       wordsDir: '/tmp/wakaru-test',
       ...overrides.storage,
-    },
-    theme: {
-      name: 'night',
-      ...overrides.theme,
     },
     anki: {
       fields: [

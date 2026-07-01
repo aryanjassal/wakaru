@@ -13,7 +13,6 @@ describe('LLM', () => {
       apiBase: 'http://ollama.test',
     },
     storage: { wordsDir: '/tmp/wakaru-test' },
-    theme: { name: 'night' },
     anki: {
       fields: [
         { name: 'Front', purpose: 'Target expression' },

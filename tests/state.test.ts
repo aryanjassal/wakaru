@@ -18,9 +18,6 @@ describe('State', () => {
     storage: {
       wordsDir: '/tmp/wakaru-test',
     },
-    theme: {
-      name: 'night',
-    },
   });
 
   const word: SavedWord = {
@@ -52,7 +49,6 @@ describe('State', () => {
       [word]
     );
 
-    expect(state.config.theme.name).toBe('night');
     expect(state.savedWords.length).toBe(1);
     expect(state.viewportCols).toBe(100);
   });

@@ -8,9 +8,6 @@
   "storage": {
     "wordsDir": "~/.config/wakaru/words"
   },
-  "theme": {
-    "name": "night"
-  },
   "anki": {
     "formatting": {
       "boldTemplate": "<strong>{{text}}</strong>",

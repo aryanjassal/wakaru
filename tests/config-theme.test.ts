@@ -3,11 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { loadConfig } from '@/core/config.js';
-import { colorscheme } from '../src/tui/lib/theme.js';
 import { getTestConfig } from './config.js';
 
-describe('Config and Theme', () => {
-  it('loadConfig reads LLM, storage, and theme settings', async () => {
+describe('Config', () => {
+  it('loadConfig reads LLM and storage settings', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'wakaru-config-'));
     const path = join(dir, 'config.json');
     const previous = process.env.WAKARU_CONFIG;
@@ -18,7 +17,6 @@ describe('Config and Theme', () => {
         JSON.stringify(
           getTestConfig({
             storage: { wordsDir: join(dir, 'words') },
-            theme: { name: 'night' },
             anki: {
               fields: [
                 { name: 'Front', purpose: 'front field' },
@@ -37,7 +35,6 @@ describe('Config and Theme', () => {
       expect(config.llm.apiBase).toBe('http://localhost:11434');
       expect(config.llm.maxInputChars).toBe(4_096);
       expect(config.storage.wordsDir).toBe(join(dir, 'words'));
-      expect(config.theme.name).toBe('night');
       expect(config.anki.fields.map((field) => field.name)).toEqual([
         'Front',
         'Back',
@@ -66,7 +63,6 @@ describe('Config and Theme', () => {
         path,
         JSON.stringify({
           llm: { provider: 'openai', model: '' },
-          theme: { name: 'neon' },
         }),
         'utf8'
       );
@@ -102,10 +98,5 @@ describe('Config and Theme', () => {
       else process.env.WAKARU_CONFIG = previous;
       await rm(dir, { recursive: true, force: true });
     }
-  });
-
-  it('TUI exposes only the built-in night theme', () => {
-    expect(colorscheme.bg).toBe('#1a1b26');
-    expect(colorscheme.primary).toBe('#bb9af7');
   });
 });

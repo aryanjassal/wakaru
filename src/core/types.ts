@@ -58,9 +58,6 @@ export type WakaruConfig = Readonly<{
   storage: Readonly<{
     wordsDir: string;
   }>;
-  theme: Readonly<{
-    name: ThemeName;
-  }>;
   anki: Readonly<{
     fields: readonly AnkiFieldConfig[];
     formatting: AnkiFormattingConfig;

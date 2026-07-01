@@ -16,9 +16,6 @@ describe('Storage', () => {
     const dir = await mkdtemp(join(tmpdir(), 'wakaru-storage-'));
     const config = getTestConfig({
       storage: { wordsDir: dir },
-      theme: {
-        name: 'night',
-      },
     });
     const candidate = createTestCandidate({
       id: 'c-1',
@@ -100,9 +97,6 @@ describe('Storage', () => {
     const dir = await mkdtemp(join(tmpdir(), 'wakaru-storage-invalid-'));
     const config = getTestConfig({
       storage: { wordsDir: dir },
-      theme: {
-        name: 'night',
-      },
     });
 
     try {

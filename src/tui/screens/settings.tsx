@@ -17,21 +17,12 @@ export function SettingsScreen() {
       title="Settings"
       titleColor={colorscheme.primary}
     >
-      <text
-        id="settings-text"
-        flexGrow={1}
-        fg={colorscheme.text}
-        content={[
-          `Provider: ${config.llm.provider}`,
-          `Model: ${config.llm.model}`,
-          `API base: ${config.llm.apiBase}`,
-          `Words directory: ${config.storage.wordsDir}`,
-          `Theme: ${config.theme.name}`,
-          '',
-          'Edit ~/.config/wakaru/config.json, then restart Wakaru.',
-        ].join('\n')}
-        wrapMode="word"
-      />
+      <text>Provider: {config.llm.provider}</text>
+      <text>Model: {config.llm.model}</text>
+      <text>API Base: {config.llm.apiBase}</text>
+      <text>Words directory: {config.storage.wordsDir}</text>
+      <text></text>
+      <text>Edit ~/.config/wakaru/config.json, then restart Wakaru.</text>
     </box>
   );
 }

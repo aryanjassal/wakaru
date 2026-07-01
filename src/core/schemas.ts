@@ -127,9 +127,6 @@ export const DEFAULT_WAKARU_CONFIG: WakaruConfig = {
   storage: {
     wordsDir: '~/.config/wakaru/words',
   },
-  theme: {
-    name: 'night',
-  },
   anki: {
     fields: [...DEFAULT_ANKI_FIELDS],
     formatting: { ...DEFAULT_ANKI_FORMATTING },
@@ -161,12 +158,6 @@ export const wakaruConfigSchema = z
       })
       .strict()
       .optional(),
-    theme: z
-      .object({
-        name: z.literal('night').optional(),
-      })
-      .strict()
-      .optional(),
     anki: z
       .object({
         fields: z.array(ankiFieldConfigSchema).min(1).optional(),
@@ -189,9 +180,6 @@ export const wakaruConfigSchema = z
     storage: {
       wordsDir:
         config.storage?.wordsDir ?? DEFAULT_WAKARU_CONFIG.storage.wordsDir,
-    },
-    theme: {
-      name: config.theme?.name ?? DEFAULT_WAKARU_CONFIG.theme.name,
     },
     anki: {
       fields: config.anki?.fields ?? [...DEFAULT_WAKARU_CONFIG.anki.fields],
