@@ -28,6 +28,7 @@ const wakaru = createWakaru({
   dictionaryPath: dictionaryPath(),
   tokeniserDictionaryPath: tokeniserDictionaryPath(),
 });
+await wakaru.checkHealth();
 
 let initialState = createInitialTuiState(
   config,

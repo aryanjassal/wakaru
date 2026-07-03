@@ -1,15 +1,15 @@
 import type { ClientConfig } from './schema/config.js';
-import type { ModelService } from '@/core/model.js';
+import type { ModelService } from '@/core/services/model.js';
 import type { WakaruServices } from '@/core/wakaru.js';
 import type {
   DictionaryRepository,
   JapaneseTokeniser,
   VocabularyInput,
-} from '@/core/vocabulary.js';
+} from '@/core/services/vocabulary.js';
 
-import { AssistantService } from '@/core/assistant.js';
+import { AssistantService } from '@/core/services/assistant.js';
 import { Wakaru } from '@/core/wakaru.js';
-import { DefaultVocabularyService } from '@/core/vocabulary.js';
+import { DefaultVocabularyService } from '@/core/services/vocabulary.js';
 import { JmdictDictionary } from './dictionary/jmdict.js';
 import { OpenAIModel } from './model/openai.js';
 import { KuromojiTokeniser } from './tokeniser/kuromoji.js';

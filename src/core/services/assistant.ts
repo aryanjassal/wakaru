@@ -1,20 +1,26 @@
 import type { z } from 'zod';
-import type { ConversationService } from './wakaru.js';
+import type { ConversationService } from '../wakaru.js';
 import type { VocabularyModel } from './vocabulary.js';
-import type { ModelService } from './model.js';
+import type { LLMAvailability, ModelService } from './model.js';
 import type {
   ChatMessage,
   ChatGenerationOptions,
   ChatResponse,
-  MiningCandidate,
-  SavedWord,
-} from './types.js';
+  AssistantCandidate,
+  AssistantCandidateExtension,
+} from '../types.js';
 
-import { parseJsonText, parseWithSchema } from './utils.js';
+import { parseJsonText, parseWithSchema } from '../validation/json.js';
+import {
+  WakaruInvalidInputError,
+  WakaruLLMUnavailableError,
+  WakaruModelOperationError,
+  WakaruModelResponseError,
+} from '../errors.js';
 import {
   modelChatResponseSchema,
   modelCandidateResponseSchema,
-} from './schemas.js';
+} from '../schemas.js';
 
 const MODEL_ATTEMPT_COUNT = 3;
 
@@ -53,7 +59,7 @@ async function retryModelOperation<T>(operation: () => Promise<T>): Promise<T> {
     }
   }
   if (lastError instanceof Error) throw lastError;
-  throw new Error(
+  throw new WakaruModelOperationError(
     typeof lastError === 'string' ? lastError : 'Model operation failed.'
   );
 }
@@ -71,7 +77,7 @@ async function generateText(
 }
 
 /**
- * Extracts and normalises a JSON array of `MiningCandidate` from LLM response text.
+ * Extracts and normalises model candidates from LLM response text.
  *
  * Handles various LLM output formats by attempting extraction in this order:
  * 1. Direct JSON parse
@@ -79,10 +85,10 @@ async function generateText(
  * 3. Best-effort partial JSON between first `{` and last `}`
  *
  * @param text - The raw string response received from the LLM provider.
- * @returns An array of normalised `MiningCandidate` objects.
+ * @returns An array of normalised candidates.
  * @throws {Error} If no valid JSON structure could be extracted after all fallback attempts.
  */
-function extractJson(text: string): readonly MiningCandidate[] {
+function extractJson(text: string): readonly AssistantCandidate[] {
   const trimmed = text.trim();
 
   // Method 1: Try parsing the response directly as JSON
@@ -110,31 +116,27 @@ function extractJson(text: string): readonly MiningCandidate[] {
   }
 
   // All methods failed; the model returned an invalid response
-  throw new Error('The model did not return JSON.');
+  throw new WakaruModelResponseError('The model did not return JSON.');
 }
 
 function normaliseCandidate(
   item: z.infer<typeof modelCandidateResponseSchema>['candidates'][number],
   index: number
-): MiningCandidate {
-  const nuance = item.nuance;
+): AssistantCandidate {
   return {
     id: `candidate-${Date.now()}-${index}-${item.expression}`,
     expression: item.expression,
-    reading: item.reading,
-    meaning: item.meaning,
-    contextMeaning: item.contextMeaning,
-    partOfSpeech: item.partOfSpeech,
-    ...(nuance ? { nuance } : {}),
-    exampleJapanese: item.exampleJapanese,
-    exampleEnglish: item.exampleEnglish,
-    tags: [...item.tags],
-    exportFields: { ...item.exportFields },
-    status: 'pending',
+    ...(item.reading ? { reading: item.reading } : {}),
+    meanings: [...item.meanings],
+    ...(item.details ? { details: item.details } : {}),
+    extension: {
+      tags: [...(item.extension?.tags ?? [])],
+      exportFields: { ...(item.extension?.exportFields ?? {}) },
+    },
   };
 }
 
-function normaliseCandidates(value: unknown): readonly MiningCandidate[] {
+function normaliseCandidates(value: unknown): readonly AssistantCandidate[] {
   const parsed = parseWithSchema(
     modelCandidateResponseSchema,
     value,
@@ -143,7 +145,9 @@ function normaliseCandidates(value: unknown): readonly MiningCandidate[] {
   return parsed.candidates.map(normaliseCandidate);
 }
 
-function parseChatResponseText(text: string): ChatResponse {
+function parseChatResponseText(
+  text: string
+): ChatResponse<AssistantCandidateExtension> {
   const trimmed = text.trim();
   const candidates = [
     trimmed,
@@ -175,10 +179,16 @@ function parseChatResponseText(text: string): ChatResponse {
           : {}),
       };
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
+      lastError =
+        error instanceof Error
+          ? error
+          : new WakaruModelResponseError(String(error));
     }
   }
-  throw lastError ?? new Error('The model did not return a chat response.');
+  throw (
+    lastError ??
+    new WakaruModelResponseError('The model did not return a chat response.')
+  );
 }
 
 export type AnalyseInputOptions = Readonly<{
@@ -220,15 +230,21 @@ Return only valid JSON with this exact shape:
     {
       "expression": "word or phrase in Japanese",
       "reading": "kana reading",
-      "meaning": "short dictionary meaning",
-      "contextMeaning": "meaning in this exact input context",
-      "partOfSpeech": "noun/verb/adjective/expression/etc",
-      "nuance": "optional usage nuance",
-      "exampleJapanese": "short natural sentence using the expression",
-      "exampleEnglish": "translation of exampleJapanese",
-      "tags": ["short", "topic", "tags"],
-      "exportFields": {
-        "Configured field name": "field value generated according to that field purpose"
+      "meanings": ["short dictionary meaning"],
+      "details": {
+        "contextMeaning": "meaning in this exact input context",
+        "partOfSpeech": ["noun/verb/adjective/expression/etc"],
+        "nuance": "optional usage nuance",
+        "example": {
+          "japanese": "short natural sentence using the expression",
+          "english": "translation of the Japanese example"
+        }
+      },
+      "extension": {
+        "tags": ["short", "topic", "tags"],
+        "exportFields": {
+          "Configured field name": "field value generated according to that field purpose"
+        }
       }
     }
   ]
@@ -241,7 +257,7 @@ async function analyseChunk(
   context: AssistantContext,
   wordText: string,
   options: AnalyseInputOptions
-): Promise<readonly MiningCandidate[]> {
+): Promise<readonly AssistantCandidate[]> {
   const responseText = await generateText(
     context,
     promptFor(context, wordText, options)
@@ -253,7 +269,7 @@ async function analyseWithModel(
   context: AssistantContext,
   wordText: string,
   options: AnalyseInputOptions = {}
-): Promise<readonly MiningCandidate[]> {
+): Promise<readonly AssistantCandidate[]> {
   const word = wordText.trim();
   if (!word) return [];
   return retryModelOperation(() => analyseChunk(context, word, options));
@@ -263,7 +279,7 @@ async function rankCandidatesWithModel(
   assistant: AssistantContext,
   expression: string,
   context: string,
-  candidates: readonly MiningCandidate[]
+  candidates: readonly AssistantCandidate[]
 ): Promise<readonly string[]> {
   const allowedIds = new Set(candidates.map((candidate) => candidate.id));
   const prompt = `Rank the supplied dictionary senses for the Japanese expression in its context.
@@ -278,9 +294,9 @@ ${JSON.stringify(
     id: candidate.id,
     expression: candidate.expression,
     reading: candidate.reading,
-    meaning: candidate.meaning,
-    partOfSpeech: candidate.partOfSpeech,
-    nuance: candidate.nuance,
+    meanings: candidate.meanings,
+    partOfSpeech: candidate.details?.partOfSpeech,
+    nuance: candidate.details?.nuance,
   })),
   null,
   2
@@ -297,17 +313,17 @@ ${JSON.stringify(
 
 async function addExampleWithModel(
   assistant: AssistantContext,
-  candidate: MiningCandidate,
+  candidate: AssistantCandidate,
   context?: string
-): Promise<MiningCandidate> {
+): Promise<AssistantCandidate> {
   const prompt = `Create one short, natural Japanese example for this exact dictionary sense.
 The expression must appear in the Japanese sentence. Do not use a different sense.
 Return only JSON: {"japanese":"...","english":"..."}.
 
 Expression: ${candidate.expression}
-Reading: ${candidate.reading}
-Meaning: ${candidate.meaning}
-Part of speech: ${candidate.partOfSpeech}
+Reading: ${candidate.reading ?? 'unknown'}
+Meanings: ${candidate.meanings.join('; ')}
+Part of speech: ${candidate.details?.partOfSpeech?.join(', ') ?? 'unknown'}
 ${context?.trim() ? `Source context: ${context.trim()}` : ''}`;
   const text = await retryModelOperation(() =>
     generateText(assistant, prompt, 0.2)
@@ -316,32 +332,37 @@ ${context?.trim() ? `Source context: ${context.trim()}` : ''}`;
   if (!parsed.success) throw parsed.error;
   const value = parsed.value as { japanese?: unknown; english?: unknown };
   if (typeof value.japanese !== 'string' || typeof value.english !== 'string') {
-    throw new Error('The model did not return a valid example.');
+    throw new WakaruModelResponseError(
+      'The model did not return a valid example.'
+    );
   }
   return {
     ...candidate,
-    exampleJapanese: value.japanese.trim(),
-    exampleEnglish: value.english.trim(),
-    exampleSource: 'llm',
+    details: {
+      ...candidate.details,
+      example: {
+        japanese: value.japanese.trim(),
+        english: value.english.trim(),
+      },
+      provenance: {
+        ...candidate.details?.provenance,
+        example: 'llm',
+      },
+    },
   };
 }
 
 function chatPrompt(
   context: AssistantContext,
-  contexts: readonly (MiningCandidate | SavedWord)[],
+  contexts: readonly AssistantCandidate[],
   messages: readonly ChatMessage[]
 ): string {
   const contextJson = contexts.map((item) => ({
     expression: item.expression,
     reading: item.reading,
-    meaning: item.meaning,
-    contextMeaning: item.contextMeaning,
-    partOfSpeech: item.partOfSpeech,
-    nuance: item.nuance,
-    exampleJapanese: item.exampleJapanese,
-    exampleEnglish: item.exampleEnglish,
-    tags: item.tags,
-    exportFields: item.exportFields,
+    meanings: item.meanings,
+    details: item.details,
+    extension: item.extension,
   }));
   const transcript = messages
     .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
@@ -375,13 +396,13 @@ Return only valid JSON with this shape:
   "candidate": null
 }
 
-Set candidate to null for explanation-only answers. If the user asks to create, correct, or improve a word candidate, set candidate to a complete object with expression, reading, meaning, contextMeaning, partOfSpeech, optional nuance, exampleJapanese, exampleEnglish, tags, and exportFields. Populate required configured export fields exactly. Optional fields may be omitted or set to null or an empty string when they are not useful. Before returning a candidate, verify that its reading covers the complete expression character by character; never return a partial reading (for example, 開発 is かいはつ, not かい). Never omit markdown.`;
+Set candidate to null for explanation-only answers. Otherwise use the same nested candidate shape as the attached vocabulary: expression, optional reading, meanings, optional details, and optional extension. Put contextMeaning, partOfSpeech, nuance, and example inside details. Put tags and exportFields inside extension. Populate required configured export fields exactly. Optional fields may be omitted when they are not useful. Before returning a candidate, verify that its reading covers the complete expression character by character; never return a partial reading (for example, 開発 is かいはつ, not かい). Never omit markdown.`;
 }
 
 async function verifyChatCandidate(
   context: AssistantContext,
-  candidate: MiningCandidate
-): Promise<MiningCandidate> {
+  candidate: AssistantCandidate
+): Promise<AssistantCandidate> {
   const responseText = await generateText(
     context,
     `You are independently validating a Japanese vocabulary record.
@@ -395,20 +416,22 @@ Candidate:
 ${JSON.stringify(candidate, null, 2)}
 
 Return only valid JSON with this shape:
-{ "candidates": [{ "expression": "...", "reading": "...", "meaning": "...", "contextMeaning": "...", "partOfSpeech": "...", "nuance": "optional", "exampleJapanese": "...", "exampleEnglish": "...", "tags": [], "exportFields": {} }] }`
+{ "candidates": [{ "expression": "...", "reading": "...", "meanings": ["..."], "details": { "contextMeaning": "...", "partOfSpeech": ["..."], "nuance": "optional", "example": { "japanese": "...", "english": "..." } }, "extension": { "tags": [], "exportFields": {} } }] }`
   );
   const verified = extractJson(responseText)[0];
   if (!verified)
-    throw new Error('The model did not return a verified candidate.');
+    throw new WakaruModelResponseError(
+      'The model did not return a verified candidate.'
+    );
   return verified;
 }
 
 async function generateChatResponse(
   context: AssistantContext,
-  contexts: readonly (MiningCandidate | SavedWord)[],
+  contexts: readonly AssistantCandidate[],
   messages: readonly ChatMessage[],
   options: ChatGenerationOptions
-): Promise<ChatResponse> {
+): Promise<ChatResponse<AssistantCandidateExtension>> {
   const responseText = await generateText(
     context,
     chatPrompt(context, contexts, messages),
@@ -419,11 +442,13 @@ async function generateChatResponse(
 
 async function chatWithModel(
   context: AssistantContext,
-  contexts: readonly (MiningCandidate | SavedWord)[],
+  contexts: readonly AssistantCandidate[],
   messages: readonly ChatMessage[],
   options: ChatGenerationOptions = {}
-): Promise<ChatResponse> {
-  if (!messages.length) throw new Error('A chat message is required.');
+): Promise<ChatResponse<AssistantCandidateExtension>> {
+  if (!messages.length) {
+    throw new WakaruInvalidInputError('A chat message is required.');
+  }
   const chatResponse = await retryModelOperation(() =>
     generateChatResponse(context, contexts, messages, options)
   );
@@ -439,45 +464,66 @@ async function chatWithModel(
 
 export class AssistantService implements VocabularyModel, ConversationService {
   private readonly context: AssistantContext;
+  private modelAvailability: LLMAvailability = 'unchecked';
 
   constructor(model: ModelService, options: AssistantOptions) {
     this.context = { model, options };
   }
 
+  public get availability(): LLMAvailability {
+    return this.modelAvailability;
+  }
+
+  public async checkHealth(): Promise<boolean> {
+    const available = await this.context.model.checkHealth().catch(() => false);
+    this.modelAvailability = available ? 'available' : 'unavailable';
+    return available;
+  }
+
+  private withAvailableModel<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.modelAvailability === 'unavailable') {
+      return Promise.reject(new WakaruLLMUnavailableError());
+    }
+    return operation();
+  }
+
   public rank(
     expression: string,
     context: string,
-    candidates: readonly MiningCandidate[]
+    candidates: readonly AssistantCandidate[]
   ): Promise<readonly string[]> {
-    return rankCandidatesWithModel(
-      this.context,
-      expression,
-      context,
-      candidates
+    return this.withAvailableModel(() =>
+      rankCandidatesWithModel(this.context, expression, context, candidates)
     );
   }
 
   public define(
     expression: string,
     context?: string
-  ): Promise<readonly MiningCandidate[]> {
-    return analyseWithModel(this.context, expression, {
-      ...(context ? { contextText: context } : {}),
-    });
+  ): Promise<readonly AssistantCandidate[]> {
+    return this.withAvailableModel(() =>
+      analyseWithModel(this.context, expression, {
+        ...(context ? { contextText: context } : {}),
+      })
+    );
   }
 
   public addExample(
-    candidate: MiningCandidate,
+    candidate: AssistantCandidate,
     context?: string
-  ): Promise<MiningCandidate> {
-    return addExampleWithModel(this.context, candidate, context);
+  ): Promise<AssistantCandidate> {
+    return this.withAvailableModel(() =>
+      addExampleWithModel(this.context, candidate, context)
+    );
   }
 
   public chat(
-    contexts: readonly (MiningCandidate | SavedWord)[],
+    contexts: readonly AssistantCandidate[],
     messages: readonly ChatMessage[],
     options?: ChatGenerationOptions
-  ): Promise<ChatResponse> {
-    return chatWithModel(this.context, contexts, messages, options);
+  ): Promise<ChatResponse<AssistantCandidateExtension>> {
+    return this.withAvailableModel(() =>
+      chatWithModel(this.context, contexts, messages, options)
+    );
   }
 }

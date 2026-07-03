@@ -1,16 +1,31 @@
-import type {
-  HtmlFormattingConfig,
-  FormattedTextToken,
-} from './formatting-types.js';
+import { WakaruFormattingSyntaxError } from './errors.js';
 
 const ESCAPABLE = new Set(['\\', '*', '_', '{', '}', '|', '<', '>']);
 
-export class FormattingSyntaxError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'FormattingSyntaxError';
-  }
-}
+export { WakaruFormattingSyntaxError } from './errors.js';
+
+export type FormattedTextToken =
+  | Readonly<{ kind: 'text'; value: string }>
+  | Readonly<{ kind: 'bold'; value: string }>
+  | Readonly<{ kind: 'italic'; value: string }>
+  | Readonly<{ kind: 'underline'; value: string }>
+  | Readonly<{ kind: 'reading'; expression: string; reading: string }>;
+
+export type HtmlFormattingConfig = Readonly<{
+  boldTemplate: string;
+  italicTemplate: string;
+  underlineTemplate: string;
+  readingTemplate: string;
+  lineBreak: string;
+}>;
+
+export const DEFAULT_HTML_FORMATTING = {
+  boldTemplate: '<strong>{{text}}</strong>',
+  italicTemplate: '<em>{{text}}</em>',
+  underlineTemplate: '<u>{{text}}</u>',
+  readingTemplate: '<ruby>{{expression}}<rt>{{reading}}</rt></ruby>',
+  lineBreak: '<br>',
+} as const satisfies HtmlFormattingConfig;
 
 export function escapeFormattedText(value: string): string {
   return value.replace(/[\\*_{}|<>]/g, (character) => `\\${character}`);
@@ -21,7 +36,9 @@ function readPlainCharacter(value: string, index: number): [string, number] {
   if (character !== '\\') return [character ?? '', index + 1];
   const escaped = value[index + 1];
   if (!escaped || !ESCAPABLE.has(escaped)) {
-    throw new FormattingSyntaxError(`Invalid escape at character ${index}.`);
+    throw new WakaruFormattingSyntaxError(
+      `Invalid escape at character ${index}.`
+    );
   }
   return [escaped, index + 2];
 }
@@ -78,13 +95,13 @@ function styledToken(
   const contentStart = start + marker.length;
   const end = findClosingMarker(source, marker, contentStart);
   if (end < 0) {
-    throw new FormattingSyntaxError(
+    throw new WakaruFormattingSyntaxError(
       `Unclosed ${kind} marker at character ${start}.`
     );
   }
   const raw = source.slice(contentStart, end);
   if (!raw || containsFormatting(raw)) {
-    throw new FormattingSyntaxError(
+    throw new WakaruFormattingSyntaxError(
       `${kind} content must be non-empty and cannot contain other formatting.`
     );
   }
@@ -97,7 +114,7 @@ function readingToken(
 ): readonly [FormattedTextToken, number] {
   const end = findClosingMarker(source, '}', start + 1);
   if (end < 0) {
-    throw new FormattingSyntaxError(
+    throw new WakaruFormattingSyntaxError(
       `Unclosed reading marker at character ${start}.`
     );
   }
@@ -108,14 +125,14 @@ function readingToken(
     separator === raw.length - 1 ||
     findClosingMarker(raw, '|', separator + 1) >= 0
   ) {
-    throw new FormattingSyntaxError(
+    throw new WakaruFormattingSyntaxError(
       'Reading syntax must be {expression|reading}.'
     );
   }
   const expression = raw.slice(0, separator);
   const reading = raw.slice(separator + 1);
   if (containsFormatting(expression) || containsFormatting(reading)) {
-    throw new FormattingSyntaxError(
+    throw new WakaruFormattingSyntaxError(
       'Reading content cannot contain other formatting.'
     );
   }
@@ -151,12 +168,14 @@ export function parseFormattedText(
     } else if (value[index] === '{') {
       parsed = readingToken(value, index);
     } else if (value[index] === '}') {
-      throw new FormattingSyntaxError(`Unexpected } at character ${index}.`);
+      throw new WakaruFormattingSyntaxError(
+        `Unexpected } at character ${index}.`
+      );
     } else if (
       value[index] === '<' &&
       /^<\/?[A-Za-z][^>]*>/u.test(value.slice(index))
     ) {
-      throw new FormattingSyntaxError(
+      throw new WakaruFormattingSyntaxError(
         `HTML is not allowed at character ${index}; use canonical formatting.`
       );
     }

@@ -73,6 +73,18 @@ export function useMineCommands({
     return { status: 'available' };
   }, [stateRef]);
 
+  const chatAvailable = useCallback((): TuiCommandAvailability => {
+    const selected = selectedCandidateRequired();
+    if (selected.status === 'disabled') return selected;
+    if (!wakaru.llmAvailable) {
+      return {
+        status: 'disabled',
+        reason: 'Chat is unavailable while Wakaru is offline.',
+      };
+    }
+    return { status: 'available' };
+  }, [selectedCandidateRequired, wakaru]);
+
   // Use a LLM to analyse the selected word, including the context if provided
   const analyseWord = useCallback(async (): Promise<void> => {
     const snapshot = syncInputs();
@@ -97,6 +109,12 @@ export function useMineCommands({
       });
       const candidates = result.candidates;
       setMineState((state) => setCandidates(state, candidates));
+      if (contextText && !wakaru.llmAvailable) {
+        addToast(
+          'Context ranking is unavailable while Wakaru is offline.',
+          'warning'
+        );
+      }
       addToast(
         `Found ${candidates.length} meaning${candidates.length === 1 ? '' : 's'}`,
         'success'
@@ -115,7 +133,7 @@ export function useMineCommands({
     const candidate = selectedCandidate(current);
     if (
       !candidate ||
-      candidate.status === 'added' ||
+      current.addedCandidateIds.has(candidate.id) ||
       current.status === 'saving'
     ) {
       return;
@@ -131,7 +149,7 @@ export function useMineCommands({
       await saveWord(wordsDir, word);
       addSavedWord(word);
       setMineState((state) => ({
-        ...markCandidate(state, candidate.id, 'added'),
+        ...markCandidate(state, candidate.id),
         status: 'idle',
       }));
       addToast(`Saved ${candidate.expression}.`, 'success');
@@ -255,7 +273,7 @@ export function useMineCommands({
   useTuiCommand({
     id: MINE_COMMAND_IDS.chatSelected,
     title: 'Chat about selected candidate',
-    availability: selectedCandidateRequired,
+    availability: chatAvailable,
     run: chatSelected,
   });
 

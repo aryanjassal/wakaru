@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolveUserPath } from '@/client/utils.js';
+import { WakaruAssetNotFoundError } from '@/client/errors.js';
 
 export function tuiWordsDir(): string {
   return resolveUserPath(
@@ -27,5 +28,5 @@ function resolveAssetPath(override: string | undefined, name: string): string {
   );
   if (existsSync(source)) return source;
 
-  throw new Error(`Required Wakaru asset is missing: ${name}`);
+  throw new WakaruAssetNotFoundError(name);
 }

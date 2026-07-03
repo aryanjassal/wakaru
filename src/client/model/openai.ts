@@ -1,6 +1,13 @@
-import type { ModelGenerationRequest, ModelService } from '@/core/model.js';
+import type {
+  ModelGenerationRequest,
+  ModelService,
+} from '@/core/services/model.js';
 
-import { parseJsonText } from '@/core/utils.js';
+import { parseJsonText } from '@/core/validation/json.js';
+import {
+  WakaruProviderRequestError,
+  WakaruProviderResponseError,
+} from '../errors.js';
 
 export const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com';
 
@@ -58,8 +65,19 @@ export class OpenAIModel implements ModelService {
           ? { response_format: { type: 'json_object' } }
           : {}),
       }),
+    }).catch((cause: unknown) => {
+      throw new WakaruProviderRequestError(
+        'The model provider request failed.',
+        undefined,
+        { cause }
+      );
     });
-    if (!response.ok) throw new Error(`API returned HTTP ${response.status}.`);
+    if (!response.ok) {
+      throw new WakaruProviderRequestError(
+        `API returned HTTP ${response.status}.`,
+        response.status
+      );
+    }
 
     const parsed = parseJsonText(await response.text(), 'Model response');
     if (!parsed.success) throw parsed.error;
@@ -68,11 +86,13 @@ export class OpenAIModel implements ModelService {
       choices?: readonly { message?: { content?: unknown } }[];
     };
     if (typeof payload.error?.message === 'string') {
-      throw new Error(payload.error.message);
+      throw new WakaruProviderResponseError(payload.error.message);
     }
     const content = payload.choices?.[0]?.message?.content;
     if (typeof content !== 'string' || !content.trim()) {
-      throw new Error('The model returned an empty response.');
+      throw new WakaruProviderResponseError(
+        'The model returned an empty response.'
+      );
     }
     return content;
   }

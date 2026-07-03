@@ -1,10 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 import {
-  FormattingSyntaxError,
+  WakaruFormattingSyntaxError,
   formattedTextToHtml,
   parseFormattedText,
-} from '@/core/formatting.js';
-import { DEFAULT_HTML_FORMATTING } from '@/core/schemas.js';
+  DEFAULT_HTML_FORMATTING,
+} from '@/client/formatting.js';
 
 describe('canonical field formatting', () => {
   it('parses the single supported readable syntax', () => {
@@ -35,7 +35,7 @@ describe('canonical field formatting', () => {
 
   it('rejects malformed and nested formatting', () => {
     expect(() => parseFormattedText('**__nested__**')).toThrow(
-      FormattingSyntaxError
+      WakaruFormattingSyntaxError
     );
     expect(() => parseFormattedText('{開発}')).toThrow(
       /must be \{expression\|reading\}/

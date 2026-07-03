@@ -1,4 +1,4 @@
-import type { SavedWord } from '@/core/types.js';
+import type { SavedWord } from '@/client/types.js';
 
 const DIGRAPHS: Readonly<Record<string, string>> = {
   きゃ: 'kya',
@@ -148,8 +148,13 @@ export function filterSavedWords(
 ): readonly SavedWord[] {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return words;
-  return words.filter((word) =>
-    [word.expression, word.reading, kanaToRomaji(word.reading), word.meaning]
+  return words.filter(({ candidate }) =>
+    [
+      candidate.expression,
+      candidate.reading ?? '',
+      kanaToRomaji(candidate.reading ?? ''),
+      candidate.meanings.join('; '),
+    ]
       .join(' ')
       .toLowerCase()
       .includes(normalized)

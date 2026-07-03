@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import type { SavedWord } from '@/core/types.js';
+import type { SavedWord } from '@/client/types.js';
 import {
   findChatCommand,
   matchingChatCommands,
@@ -10,16 +10,21 @@ import { preprocessChatMarkdown } from '@/tui/screens/chat/render.js';
 import { filterSavedWords, kanaToRomaji } from '@/tui/screens/chat/utils.js';
 
 const WORD: SavedWord = {
-  id: 'word-1',
-  expression: '警察官',
-  reading: 'けいさつかん',
-  meaning: 'police officer',
-  contextMeaning: 'police officer',
-  partOfSpeech: 'noun',
-  exampleJapanese: '私は警察官です。',
-  exampleEnglish: 'I am a police officer.',
-  tags: ['noun'],
-  exportFields: { word: '警察官' },
+  candidate: {
+    id: 'word-1',
+    expression: '警察官',
+    reading: 'けいさつかん',
+    meanings: ['police officer'],
+    details: {
+      contextMeaning: 'police officer',
+      partOfSpeech: ['noun'],
+      example: {
+        japanese: '私は警察官です。',
+        english: 'I am a police officer.',
+      },
+    },
+    extension: { tags: ['noun'], exportFields: { word: '警察官' } },
+  },
   sourceText: '私は警察官です。',
   createdAt: '2026-01-01T00:00:00.000Z',
 };

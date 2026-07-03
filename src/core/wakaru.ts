@@ -2,22 +2,25 @@ import type {
   ChatGenerationOptions,
   ChatMessage,
   ChatResponse,
-  MiningCandidate,
-  SavedWord,
+  AssistantCandidate,
+  AssistantCandidateExtension,
 } from './types.js';
 import type {
   AnalyseVocabularyInput,
   AnalyseVocabularyResult,
   VocabularyInput,
   VocabularyService,
-} from './vocabulary.js';
+} from './services/vocabulary.js';
+import type { LLMAvailability } from './services/model.js';
 
 export interface ConversationService {
+  readonly availability: LLMAvailability;
+  checkHealth(): Promise<boolean>;
   chat(
-    contexts: readonly (MiningCandidate | SavedWord)[],
+    contexts: readonly AssistantCandidate[],
     messages: readonly ChatMessage[],
     options?: ChatGenerationOptions
-  ): Promise<ChatResponse>;
+  ): Promise<ChatResponse<AssistantCandidateExtension>>;
 }
 
 export type WakaruServices<
@@ -28,24 +31,36 @@ export type WakaruServices<
 }>;
 
 export class Wakaru<Input extends VocabularyInput = AnalyseVocabularyInput> {
-  constructor(private readonly services: WakaruServices<Input>) {}
+  public constructor(private readonly services: WakaruServices<Input>) {}
+
+  public get llmAvailability(): LLMAvailability {
+    return this.services.conversation.availability;
+  }
+
+  public get llmAvailable(): boolean {
+    return this.llmAvailability === 'available';
+  }
+
+  public checkHealth(): Promise<boolean> {
+    return this.services.conversation.checkHealth();
+  }
 
   public analyseVocabulary(input: Input): Promise<AnalyseVocabularyResult> {
     return this.services.vocabulary.analyse(input);
   }
 
   public prepareVocabulary(
-    candidate: MiningCandidate,
+    candidate: AssistantCandidate,
     context?: string
-  ): Promise<MiningCandidate> {
+  ): Promise<AssistantCandidate> {
     return this.services.vocabulary.prepare(candidate, context);
   }
 
   public chat(
-    contexts: readonly (MiningCandidate | SavedWord)[],
+    contexts: readonly AssistantCandidate[],
     messages: readonly ChatMessage[],
     options?: ChatGenerationOptions
-  ): Promise<ChatResponse> {
+  ): Promise<ChatResponse<AssistantCandidateExtension>> {
     return this.services.conversation.chat(contexts, messages, options);
   }
 }

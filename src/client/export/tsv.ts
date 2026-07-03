@@ -1,4 +1,4 @@
-import type { SavedWord } from '@/core/types.js';
+import type { SavedWord } from '../types.js';
 import type { ClientConfig } from '../schema/config.js';
 
 import { writeFile } from 'node:fs/promises';
@@ -17,25 +17,26 @@ function sanitiseField(value: string): string {
 }
 
 function inheritedValue(word: SavedWord, field: InheritedExportField): string {
+  const candidate = word.candidate;
   switch (field.inherit) {
     case 'id':
-      return word.id;
+      return candidate.id;
     case 'expression':
-      return word.expression;
+      return candidate.expression;
     case 'reading':
-      return word.reading;
+      return candidate.reading ?? '';
     case 'meaning':
-      return word.meaning;
+      return candidate.meanings.join('; ');
     case 'contextMeaning':
-      return word.contextMeaning;
+      return candidate.details?.contextMeaning ?? '';
     case 'partOfSpeech':
-      return word.partOfSpeech;
+      return candidate.details?.partOfSpeech?.join(', ') ?? '';
     case 'exampleJapanese':
-      return word.exampleJapanese;
+      return candidate.details?.example?.japanese ?? '';
     case 'exampleEnglish':
-      return word.exampleEnglish;
+      return candidate.details?.example?.english ?? '';
     case 'tags':
-      return word.tags.join(' ');
+      return candidate.extension?.tags.join(' ') ?? '';
     case 'sourceText':
       return word.sourceText;
     case 'createdAt':
@@ -51,7 +52,7 @@ function fieldValue(
 ): string {
   return 'inherit' in field
     ? inheritedValue(word, field)
-    : (word.exportFields[field.key]?.trim() ?? '');
+    : (word.candidate.extension?.exportFields[field.key]?.trim() ?? '');
 }
 
 function serialise(config: ClientConfig, words: readonly SavedWord[]): string {

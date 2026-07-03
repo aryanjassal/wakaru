@@ -1,9 +1,9 @@
-import type { MiningCandidate, SavedWord } from '@/core/types.js';
+import type { ClientCandidate, SavedWord } from '../types.js';
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { savedWordSchema, savedWordsSchema } from '@/core/schemas.js';
-import { parseJsonText, parseWithSchema } from '@/core/utils.js';
+import { savedWordSchema, savedWordsSchema } from '../schema/vocabulary.js';
+import { parseJsonText, parseWithSchema } from '@/core/validation/json.js';
 import { ensureDirectory } from '../utils';
 
 const WORDS_FILE = 'words.json';
@@ -58,23 +58,11 @@ export type SavedWordsLoadResult = Readonly<{
 }>;
 
 export function candidateToSavedWord(
-  candidate: MiningCandidate,
+  candidate: ClientCandidate,
   sourceText: string
 ): SavedWord {
   return {
-    id: candidate.id,
-    expression: candidate.expression,
-    reading: candidate.reading,
-    meaning: candidate.meaning,
-    contextMeaning: candidate.contextMeaning,
-    partOfSpeech: candidate.partOfSpeech,
-    nuance: candidate.nuance,
-    exampleJapanese: candidate.exampleJapanese,
-    exampleEnglish: candidate.exampleEnglish,
-    tags: [...candidate.tags],
-    exportFields: { ...candidate.exportFields },
-    definitionSource: candidate.definitionSource,
-    exampleSource: candidate.exampleSource,
+    candidate,
     sourceText,
     createdAt: new Date().toISOString(),
   };
@@ -88,7 +76,9 @@ export async function saveWord(
   const loaded = await loadSavedWords(wordsDir);
   const next = [
     validWord,
-    ...loaded.words.filter((item) => item.id !== validWord.id),
+    ...loaded.words.filter(
+      (item) => item.candidate.id !== validWord.candidate.id
+    ),
     ...loaded.rejectedEntries,
   ];
   const dir = await ensureDirectory(wordsDir);

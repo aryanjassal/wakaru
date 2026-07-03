@@ -1,4 +1,7 @@
 export * from './create.js';
+export * from './errors.js';
+export * from './formatting.js';
+export * from './types.js';
 export * from './config.js';
 export * from './schema/config.js';
 export * from './dictionary/jmdict.js';

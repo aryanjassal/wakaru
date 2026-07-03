@@ -1,8 +1,8 @@
 import type { ClientConfig } from '@/client/schema/config.js';
-import type { MiningCandidate } from '@/core/types.js';
+import type { AssistantCandidate } from '@/core/types.js';
 import { clientConfigSchema } from '@/client/schema/config.js';
 import { miningCandidateSchema } from '@/core/schemas.js';
-import { parseWithSchema } from '@/core/utils.js';
+import { parseWithSchema } from '@/core/validation/json.js';
 
 type TestConfigOverrides = Readonly<{
   model?: Partial<ClientConfig['model']>;
@@ -30,20 +30,23 @@ export function getTestConfig(
 }
 
 export function createTestCandidate(
-  overrides: Partial<MiningCandidate> = {}
-): MiningCandidate {
+  overrides: Partial<AssistantCandidate> = {}
+): AssistantCandidate {
   return parseWithSchema(miningCandidateSchema, {
     id: 'c-1',
     expression: '配慮',
     reading: 'はいりょ',
-    meaning: 'consideration',
-    contextMeaning: 'careful thought for someone',
-    partOfSpeech: 'noun',
-    nuance: 'Often used for considerate handling of people or situations.',
-    exampleJapanese: '相手への配慮が必要だ。',
-    exampleEnglish: 'Consideration for the other person is necessary.',
-    tags: ['noun', 'mined'],
-    status: 'pending',
+    meanings: ['consideration'],
+    details: {
+      contextMeaning: 'careful thought for someone',
+      partOfSpeech: ['noun'],
+      nuance: 'Often used for considerate handling of people or situations.',
+      example: {
+        japanese: '相手への配慮が必要だ。',
+        english: 'Consideration for the other person is necessary.',
+      },
+    },
+    extension: { tags: ['noun', 'mined'], exportFields: {} },
     ...overrides,
   });
 }

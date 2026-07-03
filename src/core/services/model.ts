@@ -8,3 +8,5 @@ export interface ModelService {
   checkHealth(): Promise<boolean>;
   generate(request: ModelGenerationRequest): Promise<string>;
 }
+
+export type LLMAvailability = 'unchecked' | 'available' | 'unavailable';

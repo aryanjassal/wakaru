@@ -1,5 +1,5 @@
 import type { InputRenderable, ScrollBoxRenderable } from '@opentui/core';
-import type { SavedWord } from '@/core/types.js';
+import type { SavedWord } from '@/client/types.js';
 
 import { TextAttributes } from '@opentui/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -8,7 +8,7 @@ import { colorscheme } from '../../lib/theme.js';
 import { filterSavedWords } from './utils.js';
 
 function rowId(word: SavedWord): string {
-  return `add-word-${word.id}`;
+  return `add-word-${word.candidate.id}`;
 }
 
 export function AddWordPopup({
@@ -105,7 +105,7 @@ export function AddWordPopup({
         {visibleWords.length ? (
           visibleWords.map((word, index) => (
             <box
-              key={word.id}
+              key={word.candidate.id}
               id={rowId(word)}
               width="100%"
               height={1}
@@ -122,9 +122,9 @@ export function AddWordPopup({
             >
               <text
                 height={1}
-                content={`${selectedIds.has(word.id) ? '[x]' : '[ ]'} ${word.expression}  ${word.reading}  ${word.meaning}`}
+                content={`${selectedIds.has(word.candidate.id) ? '[x]' : '[ ]'} ${word.candidate.expression}  ${word.candidate.reading ?? ''}  ${word.candidate.meanings.join('; ')}`}
                 fg={
-                  selectedIds.has(word.id)
+                  selectedIds.has(word.candidate.id)
                     ? colorscheme.green
                     : index === selectedIndex
                       ? colorscheme.primary

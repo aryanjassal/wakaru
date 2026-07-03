@@ -8,32 +8,41 @@ export function WordDetails({ item }: Readonly<{ item: ChatContextItem }>) {
   const metadata =
     item.kind === 'saved-word'
       ? { Source: item.value.sourceText, Created: item.value.createdAt }
-      : { Status: item.value.status };
-  const word = item.value;
+      : {};
+  const candidate =
+    item.kind === 'saved-word' ? item.value.candidate : item.value;
 
   return (
     <>
       <Separator title=" Word " titleColor={colorscheme.muted} />
       <box>
-        <text>{word.expression}</text>
-        <text>{word.reading}</text>
+        <text>{candidate.expression}</text>
+        <text>{candidate.reading ?? ''}</text>
       </box>
       <Separator title=" Details " titleColor={colorscheme.muted} />
       <box flexDirection="row" columnGap={3}>
         <box>
           <text>Meaning</text>
-          <text>In context</text>
-          <text>Part of speech</text>
-          {word.nuance ? <text>Nuance</text> : null}
+          {candidate.details?.contextMeaning ? <text>In context</text> : null}
+          {candidate.details?.partOfSpeech?.length ? (
+            <text>Part of speech</text>
+          ) : null}
+          {candidate.details?.nuance ? <text>Nuance</text> : null}
           {Object.keys(metadata).map((v, i) => (
             <text key={i}>{v}</text>
           ))}
         </box>
         <box>
-          <text>{word.meaning}</text>
-          <text>{word.contextMeaning}</text>
-          <text>{word.partOfSpeech}</text>
-          {word.nuance ? <text>{word.nuance}</text> : null}
+          <text>{candidate.meanings.join('; ')}</text>
+          {candidate.details?.contextMeaning ? (
+            <text>{candidate.details.contextMeaning}</text>
+          ) : null}
+          {candidate.details?.partOfSpeech?.length ? (
+            <text>{candidate.details.partOfSpeech.join(', ')}</text>
+          ) : null}
+          {candidate.details?.nuance ? (
+            <text>{candidate.details.nuance}</text>
+          ) : null}
           {Object.values(metadata).map((v, i) => (
             <text key={i}>{v}</text>
           ))}
@@ -42,14 +51,16 @@ export function WordDetails({ item }: Readonly<{ item: ChatContextItem }>) {
       <Separator title=" Export Fields " titleColor={colorscheme.muted} />
       <box flexDirection="row" columnGap={3}>
         <box>
-          {Object.keys(word.exportFields).map((v, i) => (
+          {Object.keys(candidate.extension?.exportFields ?? {}).map((v, i) => (
             <text key={i}>{v}</text>
           ))}
         </box>
         <box>
-          {Object.values(word.exportFields).map((v, i) => (
-            <FormattedText key={i} value={v} />
-          ))}
+          {Object.values(candidate.extension?.exportFields ?? {}).map(
+            (v, i) => (
+              <FormattedText key={i} value={v} />
+            )
+          )}
         </box>
       </box>
     </>

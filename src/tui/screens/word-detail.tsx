@@ -12,6 +12,8 @@ export function WordDetailScreen({
   returnTo?: TuiRouteTarget | undefined;
 }>) {
   const { navigate } = useTuiApp();
+  const candidate =
+    item.kind === 'saved-word' ? item.value.candidate : item.value;
   return (
     <box
       id="word-detail-panel"
@@ -39,7 +41,7 @@ export function WordDetailScreen({
           action={() =>
             navigate({
               id: 'chat',
-              sessionId: `word-${item.kind}-${item.value.id}`,
+              sessionId: `word-${item.kind}-${candidate.id}`,
               contexts: [item],
             })
           }

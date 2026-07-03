@@ -1,11 +1,11 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import type { MiningCandidate } from '@/core/types.js';
+import type { AssistantCandidate } from '@/core/types.js';
 import type {
   DictionaryRepository,
   JapaneseTokeniser,
   VocabularyModel,
-} from '@/core/vocabulary.js';
-import { DefaultVocabularyService } from '@/core/vocabulary.js';
+} from '@/core/services/vocabulary.js';
+import { DefaultVocabularyService } from '@/core/services/vocabulary.js';
 import { createTestCandidate } from './config.js';
 
 const tokeniser: JapaneseTokeniser = {
@@ -56,7 +56,9 @@ describe('DefaultVocabularyService', () => {
 
     expect(lookup.mock.calls[0]?.[0]).toContain('稼ぐ');
     expect(result.source).toBe('dictionary');
-    expect(result.candidates[0]?.definitionSource).toBe('jmdict');
+    expect(result.candidates[0]?.details?.provenance?.definition).toBe(
+      'jmdict'
+    );
   });
 
   it('uses the model only to rank dictionary candidates in context', async () => {
@@ -95,7 +97,7 @@ describe('DefaultVocabularyService', () => {
   });
 
   it('falls back to the model when the dictionary has no result', async () => {
-    const fallback: MiningCandidate = createTestCandidate();
+    const fallback: AssistantCandidate = createTestCandidate();
     const define = jest
       .fn<VocabularyModel['define']>()
       .mockResolvedValue([fallback]);
@@ -108,6 +110,41 @@ describe('DefaultVocabularyService', () => {
     const result = await service.analyse({ expression: '未知語' });
 
     expect(result.source).toBe('llm');
-    expect(result.candidates[0]?.definitionSource).toBe('llm');
+    expect(result.candidates[0]?.details?.provenance?.definition).toBe('llm');
+  });
+
+  it('does not invoke contextual ranking while the model is unavailable', async () => {
+    const rank = jest.fn<VocabularyModel['rank']>();
+    const offlineModel = model({ rank });
+    Object.defineProperty(offlineModel, 'availability', {
+      value: 'unavailable',
+    });
+    const service = new DefaultVocabularyService(
+      tokeniser,
+      {
+        lookup: () => [
+          {
+            id: 'jmdict:1:0',
+            source: 'jmdict',
+            expression: '掛ける',
+            reading: 'かける',
+            meanings: ['to hang'],
+            partOfSpeech: ['verb'],
+            information: [],
+            priority: 3,
+          },
+        ],
+      },
+      offlineModel
+    );
+
+    const result = await service.analyse({
+      expression: '掛ける',
+      context: '壁に絵を掛ける。',
+    });
+
+    expect(result.source).toBe('dictionary');
+    expect(result.candidates).toHaveLength(1);
+    expect(rank).not.toHaveBeenCalled();
   });
 });

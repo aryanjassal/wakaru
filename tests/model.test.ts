@@ -1,5 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 import { DEFAULT_OPENAI_BASE_URL, OpenAIModel } from '@/client/model/openai.js';
+import {
+  WakaruProviderRequestError,
+  WakaruProviderResponseError,
+} from '@/client/errors.js';
 
 describe('OpenAIModel', () => {
   function requestUrl(input: Parameters<typeof fetch>[0]): string {
@@ -52,6 +56,52 @@ describe('OpenAIModel', () => {
       });
       await model.generate({ prompt: 'test' });
       expect(requestedUrl).toBe('https://models.example/chat');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('reports an unavailable endpoint without throwing', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () => Promise.reject(new Error('connection refused'));
+
+    try {
+      const model = new OpenAIModel({ model: 'test-model' });
+      await expect(model.checkHealth()).resolves.toBe(false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('returns named provider errors with structured status', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () =>
+      Promise.resolve(new Response('unavailable', { status: 503 }));
+
+    try {
+      const model = new OpenAIModel({ model: 'test-model' });
+      const operation = model.generate({ prompt: 'test' });
+      await expect(operation).rejects.toMatchObject({
+        name: 'WakaruProviderRequestError',
+        status: 503,
+      });
+      await expect(operation).rejects.toBeInstanceOf(
+        WakaruProviderRequestError
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('uses a named error for an empty provider response', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () => Promise.resolve(Response.json({ choices: [] }));
+
+    try {
+      const model = new OpenAIModel({ model: 'test-model' });
+      await expect(model.generate({ prompt: 'test' })).rejects.toBeInstanceOf(
+        WakaruProviderResponseError
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }

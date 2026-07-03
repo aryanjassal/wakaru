@@ -1,17 +1,10 @@
-import type { MiningCandidate } from './types';
+import type { AssistantCandidate } from '../types.js';
 
 import { z } from 'zod/v4';
-import { miningCandidateSchema } from './schemas';
+import { miningCandidateSchema } from '../schemas.js';
+import { JsonValidationError } from '../errors.js';
 
-export class JsonValidationError extends Error {
-  constructor(
-    message: string,
-    readonly issues: readonly string[]
-  ) {
-    super(message);
-    this.name = 'JsonValidationError';
-  }
-}
+export { JsonValidationError } from '../errors.js';
 
 function issuePath(issue: z.core.$ZodIssue): string {
   return issue.path.length ? issue.path.map(String).join('.') : 'root';
@@ -66,7 +59,7 @@ export function parseWithSchema<T>(
   return result.data;
 }
 
-export function parseCandidates(text: string): readonly MiningCandidate[] {
+export function parseCandidates(text: string): readonly AssistantCandidate[] {
   const parsed = parseJsonText(text);
   if (parsed.success) {
     return parseWithSchema(z.array(miningCandidateSchema), parsed.value);

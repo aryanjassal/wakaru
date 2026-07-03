@@ -7,6 +7,7 @@ export type MineState = Readonly<{
   showContext: boolean;
   status: TuiMiningStatus;
   candidates: readonly MiningCandidate[];
+  addedCandidateIds: ReadonlySet<string>;
   selectedCandidateId: string | null;
 }>;
 

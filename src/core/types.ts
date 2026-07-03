@@ -1,52 +1,49 @@
-export type MiningCandidateStatus = 'pending' | 'added';
-
-export type ExportFieldConfig = Readonly<{
-  name: string;
-  purpose: string;
-  optional?: boolean | undefined;
+export type VocabularyExample = Readonly<{
+  japanese: string;
+  english?: string | undefined;
 }>;
 
-export type ExportFieldValues = Readonly<Record<string, string>>;
+export type CandidateProvenance = Readonly<{
+  definition?: string | undefined;
+  example?: string | undefined;
+}>;
 
-export type MiningCandidate = Readonly<{
-  id: string;
-  expression: string;
-  reading: string;
-  meaning: string;
-  contextMeaning: string;
-  partOfSpeech: string;
+export type CandidateDetails = Readonly<{
+  contextMeaning?: string | undefined;
+  partOfSpeech?: readonly string[] | undefined;
   nuance?: string | undefined;
-  exampleJapanese: string;
-  exampleEnglish: string;
-  tags: readonly string[];
-  exportFields: ExportFieldValues;
-  definitionSource?: string | undefined;
-  exampleSource?: string | undefined;
-  status: MiningCandidateStatus;
+  example?: VocabularyExample | undefined;
+  provenance?: CandidateProvenance | undefined;
 }>;
 
-export type SavedWord = Readonly<
-  Omit<MiningCandidate, 'status'> & {
-    sourceText: string;
-    createdAt: string;
-  }
->;
+export type MiningCandidate<Extension extends object = Record<never, never>> =
+  Readonly<{
+    id: string;
+    expression: string;
+    reading?: string | undefined;
+    meanings: readonly string[];
+    details?: CandidateDetails | undefined;
+    extension?: Readonly<Extension> | undefined;
+  }>;
+
+export type AssistantCandidateExtension = Readonly<{
+  tags: readonly string[];
+  exportFields: Readonly<Record<string, string>>;
+}>;
+
+export type AssistantCandidate = MiningCandidate<AssistantCandidateExtension>;
 
 export type ChatMessage = Readonly<{
   role: 'user' | 'assistant';
   content: string;
 }>;
 
-export type ChatResponse = Readonly<{
-  markdown: string;
-  candidate?: MiningCandidate | undefined;
-}>;
+export type ChatResponse<Extension extends object = Record<never, never>> =
+  Readonly<{
+    markdown: string;
+    candidate?: MiningCandidate<Extension> | undefined;
+  }>;
 
 export type ChatGenerationOptions = Readonly<{
   temperature?: number | undefined;
 }>;
-
-export type {
-  HtmlFormattingConfig,
-  FormattedTextToken,
-} from './formatting-types.js';

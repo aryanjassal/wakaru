@@ -1,5 +1,5 @@
 import type { MineState } from './types';
-import type { MiningCandidate, MiningCandidateStatus } from '@/tui/lib/types';
+import type { MiningCandidate } from '@/tui/lib/types';
 
 import { truncate } from '@/tui/lib/utils';
 
@@ -11,6 +11,7 @@ export function createInitialMineState(): MineState {
     showContext: false,
     status: 'idle',
     candidates: [],
+    addedCandidateIds: new Set(),
     selectedCandidateId: null,
   };
 }
@@ -37,6 +38,7 @@ export function setCandidates(
   return {
     ...state,
     candidates,
+    addedCandidateIds: new Set(),
     selectedCandidateId: candidates[0]?.id ?? null,
     showDetails: false,
     status: 'idle',
@@ -45,14 +47,11 @@ export function setCandidates(
 
 export function markCandidate(
   state: MineState,
-  candidateId: string,
-  status: MiningCandidateStatus
+  candidateId: string
 ): MineState {
   return {
     ...state,
-    candidates: state.candidates.map((candidate) =>
-      candidate.id === candidateId ? { ...candidate, status } : candidate
-    ),
+    addedCandidateIds: new Set([...state.addedCandidateIds, candidateId]),
   };
 }
 
@@ -70,13 +69,8 @@ export function clearMineState(state: MineState): MineState {
 
 // Return a human-readable string related to the candidate state
 // TODO: kind of irrelevant. just remove
-function candidateStatus(candidate: MiningCandidate): string {
-  switch (candidate.status) {
-    case 'added':
-      return 'saved';
-    case 'pending':
-      return 'inbox';
-  }
+function candidateStatus(state: MineState, candidate: MiningCandidate): string {
+  return state.addedCandidateIds.has(candidate.id) ? 'saved' : 'inbox';
 }
 
 export function candidateRows(state: MineState): string {
@@ -87,10 +81,10 @@ export function candidateRows(state: MineState): string {
       return [
         marker,
         String(index + 1).padStart(2, ' '),
-        candidateStatus(candidate).padEnd(5, ' '),
+        candidateStatus(state, candidate).padEnd(5, ' '),
         truncate(candidate.expression, 18).padEnd(18, ' '),
-        truncate(candidate.reading, 18).padEnd(18, ' '),
-        truncate(candidate.meaning, 40),
+        truncate(candidate.reading ?? '', 18).padEnd(18, ' '),
+        truncate(candidate.meanings.join('; '), 40),
       ].join(' ');
     })
     .join('\n');
@@ -102,10 +96,12 @@ export function candidateDetailText(state: MineState): string {
 
   const base = [
     candidate.expression,
-    candidate.reading,
-    candidate.meaning,
+    candidate.reading ?? '',
+    candidate.meanings.join('; '),
     '',
-    `In context: ${candidate.contextMeaning}`,
+    candidate.details?.contextMeaning
+      ? `In context: ${candidate.details.contextMeaning}`
+      : '',
   ];
   if (!state.showDetails) {
     return [...base, '', '[d] show more info'].join('\n');
@@ -114,11 +110,15 @@ export function candidateDetailText(state: MineState): string {
   return [
     ...base,
     '',
-    `Part of speech: ${candidate.partOfSpeech}`,
-    candidate.nuance ? `Nuance: ${candidate.nuance}` : '',
-    candidate.exampleJapanese,
-    candidate.exampleEnglish,
-    candidate.tags.length ? `Tags: ${candidate.tags.join(' ')}` : '',
+    candidate.details?.partOfSpeech?.length
+      ? `Part of speech: ${candidate.details.partOfSpeech.join(', ')}`
+      : '',
+    candidate.details?.nuance ? `Nuance: ${candidate.details.nuance}` : '',
+    candidate.details?.example?.japanese ?? '',
+    candidate.details?.example?.english ?? '',
+    candidate.extension?.tags.length
+      ? `Tags: ${candidate.extension.tags.join(' ')}`
+      : '',
     '',
     '[d] hide details',
   ]

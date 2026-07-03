@@ -45,12 +45,15 @@ export function savedWordRows(words: readonly SavedWord[]): string {
   if (!words.length) return 'No saved words yet.';
   return words
     .slice(0, 30)
-    .map((word, index) =>
+    .map(({ candidate }, index) =>
       [
         String(index + 1).padStart(2, ' '),
-        truncate(word.expression, 18).padEnd(18, ' '),
-        truncate(word.reading, 18).padEnd(18, ' '),
-        truncate(word.contextMeaning, 48),
+        truncate(candidate.expression, 18).padEnd(18, ' '),
+        truncate(candidate.reading ?? '', 18).padEnd(18, ' '),
+        truncate(
+          candidate.details?.contextMeaning ?? candidate.meanings.join('; '),
+          48
+        ),
       ].join(' ')
     )
     .join('\n');

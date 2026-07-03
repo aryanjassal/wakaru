@@ -7,6 +7,7 @@ import {
   pruneToasts,
 } from '../src/tui/lib/state.js';
 import { getTestConfig } from './config.js';
+import { createTestCandidate } from './config.js';
 
 describe('State', () => {
   const config = getTestConfig({
@@ -17,19 +18,24 @@ describe('State', () => {
   });
 
   const word: SavedWord = {
-    id: 'c-1',
-    expression: '曖昧',
-    reading: 'あいまい',
-    meaning: 'ambiguous',
-    contextMeaning: 'unclear in the pasted sentence',
-    partOfSpeech: 'na-adjective',
-    exampleJapanese: '曖昧な返事をした。',
-    exampleEnglish: 'They gave an ambiguous answer.',
-    tags: ['jp', 'adjective'],
-    exportFields: {
-      Front: '曖昧',
-      Back: 'ambiguous',
-    },
+    candidate: createTestCandidate({
+      id: 'c-1',
+      expression: '曖昧',
+      reading: 'あいまい',
+      meanings: ['ambiguous'],
+      details: {
+        contextMeaning: 'unclear in the pasted sentence',
+        partOfSpeech: ['na-adjective'],
+        example: {
+          japanese: '曖昧な返事をした。',
+          english: 'They gave an ambiguous answer.',
+        },
+      },
+      extension: {
+        tags: ['jp', 'adjective'],
+        exportFields: { Front: '曖昧', Back: 'ambiguous' },
+      },
+    }),
     sourceText: '曖昧な返事',
     createdAt: '2026-01-01T00:00:00.000Z',
   };

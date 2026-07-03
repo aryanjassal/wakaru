@@ -53,10 +53,10 @@ export function LibraryScreen() {
       {savedWords.length ? (
         savedWords.map((word) => (
           <Button
-            key={word.id}
-            id={`library-word-${word.id}`}
+            key={word.candidate.id}
+            id={`library-word-${word.candidate.id}`}
             width="100%"
-            label={`${word.expression}  ${word.reading}  ${word.meaning}`}
+            label={`${word.candidate.expression}  ${word.candidate.reading ?? ''}  ${word.candidate.meanings.join('; ')}`}
             action={() =>
               navigate({
                 id: 'word-detail',

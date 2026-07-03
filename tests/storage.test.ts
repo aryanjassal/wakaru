@@ -25,14 +25,7 @@ describe('Storage', () => {
       id: 'c-1',
       expression: '配慮',
       reading: 'はいりょ',
-      meaning: 'consideration',
-      contextMeaning: 'careful thought for someone',
-      partOfSpeech: 'noun',
-      nuance: 'Often used for considerate handling of people or situations.',
-      exampleJapanese: '相手への配慮が必要だ。',
-      exampleEnglish: 'Consideration for the other person is necessary.',
-      tags: ['noun', 'mined'],
-      status: 'pending',
+      meanings: ['consideration'],
     });
 
     try {
@@ -44,7 +37,7 @@ describe('Storage', () => {
       const tsv = await readFile(tsvExportPath(dir), 'utf8');
 
       expect(loaded.words.length).toBe(1);
-      expect(loaded.words[0]?.expression).toBe('配慮');
+      expect(loaded.words[0]?.candidate.expression).toBe('配慮');
       expect(tsv).toMatch(/配慮/);
       expect(tsv).toMatch(/はいりょ/);
     } finally {
@@ -67,17 +60,22 @@ describe('Storage', () => {
       id: 'c-2',
       expression: '警察官',
       reading: 'けいさつかん',
-      meaning: 'police officer',
-      contextMeaning: 'police officer',
-      partOfSpeech: 'noun',
-      exampleJapanese: 'はい、私は警察官です。',
-      exampleEnglish: 'Yes, I am a police officer.',
-      tags: ['occupation'],
-      exportFields: {
-        CardBack: '__けいさつかん__',
-        Tags: 'noun occupation',
+      meanings: ['police officer'],
+      details: {
+        contextMeaning: 'police officer',
+        partOfSpeech: ['noun'],
+        example: {
+          japanese: 'はい、私は警察官です。',
+          english: 'Yes, I am a police officer.',
+        },
       },
-      status: 'pending',
+      extension: {
+        tags: ['occupation'],
+        exportFields: {
+          CardBack: '__けいさつかん__',
+          Tags: 'noun occupation',
+        },
+      },
     });
 
     try {

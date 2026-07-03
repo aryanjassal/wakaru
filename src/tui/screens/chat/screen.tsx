@@ -1,10 +1,6 @@
 import type { ScrollBoxRenderable, TextareaRenderable } from '@opentui/core';
-import type {
-  ChatMessage,
-  ChatResponse,
-  MiningCandidate,
-  SavedWord,
-} from '@/core/types.js';
+import type { ChatMessage, AssistantCandidate } from '@/core/types.js';
+import type { SavedWord } from '@/client/types.js';
 import type { ChatContextItem, TuiReturnRoute } from '../../lib/types.js';
 import type { ChatCommandFragment } from './commands.js';
 
@@ -35,7 +31,7 @@ type ChatTurn = ChatMessage &
   Readonly<{
     id: string;
     attachments?: readonly ChatContextItem[] | undefined;
-    candidate?: MiningCandidate | undefined;
+    candidate?: AssistantCandidate | undefined;
   }>;
 
 type ChatState = Readonly<{
@@ -57,7 +53,11 @@ function createChatState(attachments: readonly ChatContextItem[]): ChatState {
 }
 
 function contextKey(item: ChatContextItem): string {
-  return `${item.kind}:${item.value.id}`;
+  return `${item.kind}:${contextCandidate(item).id}`;
+}
+
+function contextCandidate(item: ChatContextItem): AssistantCandidate {
+  return item.kind === 'saved-word' ? item.value.candidate : item.value;
 }
 
 function uniqueContexts(
@@ -75,7 +75,7 @@ function ContextChip({
   const { navigate } = useTuiApp();
   return (
     <Button
-      label={item.value.expression}
+      label={contextCandidate(item).expression}
       fg={colorscheme.primary}
       bg={colorscheme.bg}
       attributes={TextAttributes.UNDERLINE}
@@ -116,7 +116,7 @@ function AssistantTurn({
   turn: ChatTurn;
   syntaxStyle: SyntaxStyle;
   showFurigana: boolean;
-  onSave: (candidate: MiningCandidate) => void;
+  onSave: (candidate: AssistantCandidate) => void;
 }>) {
   return (
     <box width="100%" flexDirection="column" rowGap={1}>
@@ -142,7 +142,7 @@ function AssistantTurn({
           <WordDetails item={{ kind: 'candidate', value: turn.candidate }} />
           <Button
             label="Save candidate"
-            action={() => onSave(turn.candidate as MiningCandidate)}
+            action={() => onSave(turn.candidate as AssistantCandidate)}
           />
         </box>
       ) : null}
@@ -191,6 +191,11 @@ export function ChatScreen({
 
   useEffect(() => () => syntaxStyle.destroy(), [syntaxStyle]);
   useEffect(() => composerRef.current?.focus(), []);
+  useEffect(() => {
+    if (!app.wakaru.llmAvailable) {
+      app.addToast('Chat is unavailable while Wakaru is offline.', 'warning');
+    }
+  }, [app.addToast, app.wakaru]);
   useEffect(() => {
     if (commandIndex < matchingCommands.length) return;
     setCommandIndex(Math.max(0, matchingCommands.length - 1));
@@ -278,6 +283,10 @@ export function ChatScreen({
   const send = useCallback(async () => {
     const prompt = (composerRef.current?.plainText ?? state.prompt).trim();
     if (!prompt || busy) return;
+    if (!app.wakaru.llmAvailable) {
+      app.addToast('Chat is unavailable while Wakaru is offline.', 'warning');
+      return;
+    }
     const attachments = state.attachments;
     const userTurn: ChatTurn = {
       id: `user-${Date.now()}`,
@@ -302,8 +311,8 @@ export function ChatScreen({
     replaceComposerText('');
     setBusy(true);
     try {
-      const response: ChatResponse = await app.wakaru.chat(
-        contexts.map((context) => context.value),
+      const response = await app.wakaru.chat(
+        contexts.map(contextCandidate),
         messages,
         { temperature: state.temperature }
       );
@@ -328,14 +337,17 @@ export function ChatScreen({
   }, [app, busy, replaceComposerText, setState, state]);
 
   const saveCandidate = useCallback(
-    async (candidate: MiningCandidate) => {
-      const source = state.turns
+    async (candidate: AssistantCandidate) => {
+      const sourceItem = state.turns
         .flatMap((turn) => turn.attachments ?? [])
-        .at(-1)?.value;
+        .at(-1);
+      const source = sourceItem ? contextCandidate(sourceItem) : undefined;
       const sourceText =
-        source && 'sourceText' in source
-          ? source.sourceText
-          : (source?.exampleJapanese ?? candidate.exampleJapanese);
+        sourceItem?.kind === 'saved-word'
+          ? sourceItem.value.sourceText
+          : (source?.details?.example?.japanese ??
+            candidate.details?.example?.japanese ??
+            '');
       try {
         const prepared = await app.wakaru.prepareVocabulary(
           candidate,
@@ -344,7 +356,7 @@ export function ChatScreen({
         const word = candidateToSavedWord(prepared, sourceText);
         await saveWord(app.wordsDir, word);
         app.addSavedWord(word);
-        app.addToast(`Saved ${word.expression}.`, 'success');
+        app.addToast(`Saved ${word.candidate.expression}.`, 'success');
       } catch (error) {
         app.addToast(errorMessage(error), 'error');
       }
@@ -378,7 +390,12 @@ export function ChatScreen({
         stickyStart="bottom"
         contentOptions={{ flexDirection: 'column', rowGap: 1 }}
       >
-        {state.turns.length ? (
+        {!app.wakaru.llmAvailable ? (
+          <text
+            content="Chat is unavailable while Wakaru is offline. Dictionary lookup remains available."
+            fg={colorscheme.warning}
+          />
+        ) : state.turns.length ? (
           state.turns.map((turn) =>
             turn.role === 'user' ? (
               <box
@@ -493,7 +510,7 @@ export function ChatScreen({
             new Set(
               state.attachments
                 .filter((item) => item.kind === 'saved-word')
-                .map((item) => item.value.id)
+                .map((item) => item.value.candidate.id)
             )
           }
           onClose={() => {

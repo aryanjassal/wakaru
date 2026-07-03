@@ -1,4 +1,7 @@
-import type { JapaneseToken, JapaneseTokeniser } from '@/core/vocabulary.js';
+import type {
+  JapaneseToken,
+  JapaneseTokeniser,
+} from '@/core/services/vocabulary.js';
 import type { IpadicFeatures, Tokenizer } from 'kuromoji';
 
 import kuromoji from 'kuromoji';

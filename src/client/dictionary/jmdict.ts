@@ -1,7 +1,7 @@
 import type {
   DictionaryRepository,
   DictionarySense,
-} from '@/core/vocabulary.js';
+} from '@/core/services/vocabulary.js';
 import type { EntryRow, FormKind, FormRow, SenseRow } from './schema.js';
 
 import Database from 'better-sqlite3';
@@ -30,7 +30,7 @@ export class JmdictDictionary implements DictionaryRepository {
   private readonly sqlite: Database.Database;
   private readonly database;
 
-  constructor(path: string) {
+  public constructor(path: string) {
     this.sqlite = new Database(path, { readonly: true });
     this.database = drizzle(this.sqlite);
   }

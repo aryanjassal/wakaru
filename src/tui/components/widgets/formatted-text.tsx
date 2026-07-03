@@ -2,14 +2,28 @@ import type { TextProps } from '@opentui/react';
 import type { ReactNode } from 'react';
 
 import { Fragment, useMemo } from 'react';
-import { parseFormattedText } from '@/core/formatting.js';
+import type { FormattedTextToken } from '@/client/formatting.js';
+
+import {
+  WakaruFormattingSyntaxError,
+  parseFormattedText,
+} from '@/client/formatting.js';
 import { colorscheme } from '@/tui/lib/theme.js';
 
 type FormattedTextProps = Omit<TextProps, 'children' | 'content'> &
   Readonly<{ value: string }>;
 
 export function FormattedText({ value, ...props }: FormattedTextProps) {
-  const tokens = useMemo(() => parseFormattedText(value), [value]);
+  const tokens = useMemo<readonly FormattedTextToken[]>(() => {
+    try {
+      return parseFormattedText(value);
+    } catch (error) {
+      if (error instanceof WakaruFormattingSyntaxError) {
+        return [{ kind: 'text', value }];
+      }
+      throw error;
+    }
+  }, [value]);
   const children: ReactNode[] = tokens.map((token, index) => {
     const key = `${token.kind}-${index}`;
     switch (token.kind) {

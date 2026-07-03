@@ -1,14 +1,9 @@
 import type { ClientConfig } from '@/client/schema/config.js';
-import type { MiningCandidate, SavedWord } from '@/core/types.js';
+import type { ClientCandidate, SavedWord } from '@/client/types.js';
 import type { TuiCommandId } from '../commands.js';
 
-export type {
-  ExportFieldConfig,
-  ExportFieldValues,
-  MiningCandidate,
-  MiningCandidateStatus,
-  SavedWord,
-} from '@/core/types.js';
+export type MiningCandidate = ClientCandidate;
+export type { SavedWord } from '@/client/types.js';
 export type { ClientConfig } from '@/client/schema/config.js';
 
 export type TuiMiningStatus = 'idle' | 'analysing' | 'saving' | 'error';

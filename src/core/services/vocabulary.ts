@@ -1,4 +1,5 @@
-import type { MiningCandidate } from './types.js';
+import type { AssistantCandidate } from './../types.js';
+import type { LLMAvailability } from './model.js';
 
 export type JapaneseToken = Readonly<{
   surface: string;
@@ -31,19 +32,20 @@ export interface DictionaryRepository {
 }
 
 export interface VocabularyModel {
+  readonly availability?: LLMAvailability;
   rank(
     expression: string,
     context: string,
-    candidates: readonly MiningCandidate[]
+    candidates: readonly AssistantCandidate[]
   ): Promise<readonly string[]>;
   define(
     expression: string,
     context?: string
-  ): Promise<readonly MiningCandidate[]>;
+  ): Promise<readonly AssistantCandidate[]>;
   addExample(
-    candidate: MiningCandidate,
+    candidate: AssistantCandidate,
     context?: string
-  ): Promise<MiningCandidate>;
+  ): Promise<AssistantCandidate>;
 }
 
 export interface VocabularyInput {
@@ -56,7 +58,7 @@ export type AnalyseVocabularyInput = Readonly<VocabularyInput>;
 
 export type AnalyseVocabularyResult = Readonly<{
   tokens: readonly JapaneseToken[];
-  candidates: readonly MiningCandidate[];
+  candidates: readonly AssistantCandidate[];
   source: 'dictionary' | 'dictionary+llm' | 'llm';
 }>;
 
@@ -66,24 +68,22 @@ function katakanaToHiragana(value: string): string {
   );
 }
 
-function dictionaryCandidate(sense: DictionarySense): MiningCandidate {
-  const meaning = sense.meanings.join('; ');
+function dictionaryCandidate(sense: DictionarySense): AssistantCandidate {
   return {
     id: sense.id,
     expression: sense.expression,
     reading: sense.reading,
-    meaning,
-    contextMeaning: meaning,
-    partOfSpeech: sense.partOfSpeech.join(', ') || 'unknown',
-    ...(sense.information.length
-      ? { nuance: sense.information.join('; ') }
-      : {}),
-    exampleJapanese: '',
-    exampleEnglish: '',
-    tags: [sense.source],
-    exportFields: {},
-    definitionSource: sense.source,
-    status: 'pending',
+    meanings: sense.meanings,
+    details: {
+      ...(sense.partOfSpeech.length
+        ? { partOfSpeech: sense.partOfSpeech }
+        : {}),
+      ...(sense.information.length
+        ? { nuance: sense.information.join('; ') }
+        : {}),
+      provenance: { definition: sense.source },
+    },
+    extension: { tags: [sense.source], exportFields: {} },
   };
 }
 
@@ -92,9 +92,9 @@ export interface VocabularyService<
 > {
   analyse(input: Input): Promise<AnalyseVocabularyResult>;
   prepare(
-    candidate: MiningCandidate,
+    candidate: AssistantCandidate,
     context?: string
-  ): Promise<MiningCandidate>;
+  ): Promise<AssistantCandidate>;
 }
 
 export class DefaultVocabularyService<
@@ -129,13 +129,19 @@ export class DefaultVocabularyService<
         tokens,
         candidates: generated.map((candidate) => ({
           ...candidate,
-          definitionSource: 'llm',
+          details: {
+            ...candidate.details,
+            provenance: {
+              ...candidate.details?.provenance,
+              definition: 'llm',
+            },
+          },
         })),
         source: 'llm',
       };
     }
 
-    if (context) {
+    if (context && this.model.availability !== 'unavailable') {
       try {
         const rankedIds = await this.model.rank(
           expression,
@@ -162,10 +168,11 @@ export class DefaultVocabularyService<
   }
 
   public async prepare(
-    candidate: MiningCandidate,
+    candidate: AssistantCandidate,
     context?: string
-  ): Promise<MiningCandidate> {
-    if (candidate.exampleJapanese.trim()) return candidate;
+  ): Promise<AssistantCandidate> {
+    if (candidate.details?.example?.japanese.trim()) return candidate;
+    if (this.model.availability === 'unavailable') return candidate;
     try {
       return await this.model.addExample(candidate, context);
     } catch {

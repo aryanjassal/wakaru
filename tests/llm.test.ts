@@ -1,6 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
 import { OpenAIModel } from '@/client/model/openai.js';
-import { AssistantService } from '@/core/assistant.js';
+import { AssistantService } from '@/core/services/assistant.js';
+import { WakaruLLMUnavailableError } from '@/core/errors.js';
 import { getTestConfig } from './config.js';
 
 describe('OpenAI-compatible model', () => {
@@ -58,6 +59,26 @@ describe('OpenAI-compatible model', () => {
     );
   }
 
+  it('short-circuits model operations after a failed health check', async () => {
+    let generationCount = 0;
+    const service = new AssistantService(
+      {
+        checkHealth: () => Promise.resolve(false),
+        generate: () => {
+          generationCount += 1;
+          return Promise.resolve('{}');
+        },
+      },
+      { fields: [], maxInputChars: 1_000 }
+    );
+
+    await expect(service.checkHealth()).resolves.toBe(false);
+    await expect(
+      service.chat([], [{ role: 'user', content: 'hello' }])
+    ).rejects.toBeInstanceOf(WakaruLLMUnavailableError);
+    expect(generationCount).toBe(0);
+  });
+
   it('analyseWithModel sends a request and normalises candidates', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (url, init) => {
@@ -79,17 +100,23 @@ describe('OpenAI-compatible model', () => {
             {
               expression: '稼ぐ',
               reading: 'かせぐ',
-              meaning: 'to earn',
-              contextMeaning: 'to make money',
-              partOfSpeech: 'verb',
-              exampleJapanese: '彼は生活費を稼いでいる。',
-              exampleEnglish: 'He earns his living expenses.',
-              tags: ['verb'],
-              exportFields: {
-                Front: '稼ぐ',
-                Back: 'かせぐ\nto earn',
-                Tags: 'wakaru verb',
-                Notes: null,
+              meanings: ['to earn'],
+              details: {
+                contextMeaning: 'to make money',
+                partOfSpeech: ['verb'],
+                example: {
+                  japanese: '彼は生活費を稼いでいる。',
+                  english: 'He earns his living expenses.',
+                },
+              },
+              extension: {
+                tags: ['verb'],
+                exportFields: {
+                  Front: '稼ぐ',
+                  Back: 'かせぐ\nto earn',
+                  Tags: 'wakaru verb',
+                  Notes: null,
+                },
               },
             },
           ],
@@ -105,32 +132,32 @@ describe('OpenAI-compatible model', () => {
 
       expect(candidates.length).toBe(1);
       expect(candidates[0]?.expression).toBe('稼ぐ');
-      expect(candidates[0]?.status).toBe('pending');
-      expect(candidates[0]?.tags).toEqual(['verb']);
-      expect(candidates[0]?.exportFields.Front).toBe('稼ぐ');
-      expect(candidates[0]?.exportFields.Notes).toBeUndefined();
+      expect(candidates[0]?.extension?.tags).toEqual(['verb']);
+      expect(candidates[0]?.extension?.exportFields.Front).toBe('稼ぐ');
+      expect(candidates[0]?.extension?.exportFields.Notes).toBeUndefined();
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  it('analyseWithModel tolerates common model response shape drift', async () => {
+  it('analyseWithModel preserves optional candidate details', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = () =>
       Promise.resolve(
-        modelResponse([
-          {
-            word: '警察官',
-            furigana: 'けいさつかん',
-            definition: 'police officer',
-            part_of_speech: 'noun',
-            pitchAccent: '0',
-            fields: {
-              Front: '警察官',
-              Attempts: '1',
+        modelResponse({
+          candidates: [
+            {
+              expression: '警察官',
+              reading: 'けいさつかん',
+              meanings: ['police officer'],
+              details: { partOfSpeech: ['noun'] },
+              extension: {
+                tags: [],
+                exportFields: { Front: '警察官', Attempts: '1' },
+              },
             },
-          },
-        ])
+          ],
+        })
       );
 
     try {
@@ -141,10 +168,10 @@ describe('OpenAI-compatible model', () => {
 
       expect(candidates[0]?.expression).toBe('警察官');
       expect(candidates[0]?.reading).toBe('けいさつかん');
-      expect(candidates[0]?.meaning).toBe('police officer');
-      expect(candidates[0]?.contextMeaning).toBe('police officer');
-      expect(candidates[0]?.partOfSpeech).toBe('noun');
-      expect(candidates[0]?.exportFields.Attempts).toBe('1');
+      expect(candidates[0]?.meanings).toEqual(['police officer']);
+      expect(candidates[0]?.details?.contextMeaning).toBeUndefined();
+      expect(candidates[0]?.details?.partOfSpeech).toEqual(['noun']);
+      expect(candidates[0]?.extension?.exportFields.Attempts).toBe('1');
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -180,8 +207,11 @@ describe('OpenAI-compatible model', () => {
             {
               expression: '試す',
               reading: 'ためす',
-              meaning: 'to try',
-              exportFields: { Front: '{試す|ためす}' },
+              meanings: ['to try'],
+              extension: {
+                tags: [],
+                exportFields: { Front: '{試す|ためす}' },
+              },
             },
           ],
         })
@@ -211,13 +241,19 @@ describe('OpenAI-compatible model', () => {
               {
                 expression: '稼ぐ',
                 reading: 'かせぐ',
-                meaning: 'to earn',
-                contextMeaning: 'to earn money',
-                partOfSpeech: 'verb',
-                exampleJapanese: '生活費を稼ぐ。',
-                exampleEnglish: 'Earn living expenses.',
-                tags: ['verb'],
-                exportFields: { Front: '稼ぐ' },
+                meanings: ['to earn'],
+                details: {
+                  contextMeaning: 'to earn money',
+                  partOfSpeech: ['verb'],
+                  example: {
+                    japanese: '生活費を稼ぐ。',
+                    english: 'Earn living expenses.',
+                  },
+                },
+                extension: {
+                  tags: ['verb'],
+                  exportFields: { Front: '稼ぐ' },
+                },
               },
             ],
           })
@@ -232,13 +268,19 @@ describe('OpenAI-compatible model', () => {
           candidate: {
             expression: '稼ぐ',
             reading: 'かせぐ',
-            meaning: 'to earn',
-            contextMeaning: 'to earn money',
-            partOfSpeech: 'verb',
-            exampleJapanese: '生活費を稼ぐ。',
-            exampleEnglish: 'Earn living expenses.',
-            tags: ['verb'],
-            exportFields: { Front: '稼ぐ' },
+            meanings: ['to earn'],
+            details: {
+              contextMeaning: 'to earn money',
+              partOfSpeech: ['verb'],
+              example: {
+                japanese: '生活費を稼ぐ。',
+                english: 'Earn living expenses.',
+              },
+            },
+            extension: {
+              tags: ['verb'],
+              exportFields: { Front: '稼ぐ' },
+            },
           },
         })
       );
@@ -251,22 +293,26 @@ describe('OpenAI-compatible model', () => {
             id: 'saved-1',
             expression: '稼ぐ',
             reading: 'かせぐ',
-            meaning: 'to earn',
-            contextMeaning: 'to earn money',
-            partOfSpeech: 'verb',
-            exampleJapanese: '生活費を稼ぐ。',
-            exampleEnglish: 'Earn living expenses.',
-            tags: ['verb'],
-            exportFields: { Front: '稼ぐ' },
-            sourceText: '生活費を稼ぐ。',
-            createdAt: '2026-01-01T00:00:00.000Z',
+            meanings: ['to earn'],
+            details: {
+              contextMeaning: 'to earn money',
+              partOfSpeech: ['verb'],
+              example: {
+                japanese: '生活費を稼ぐ。',
+                english: 'Earn living expenses.',
+              },
+            },
+            extension: {
+              tags: ['verb'],
+              exportFields: { Front: '稼ぐ' },
+            },
           },
         ],
         [{ role: 'user', content: 'Why is this a verb?' }],
         { temperature: 0.2 }
       );
       expect(response.markdown).toMatch(/godan verb/);
-      expect(response.candidate?.status).toBe('pending');
+      expect(response.candidate?.meanings).toEqual(['to earn']);
       expect(requestCount).toBe(2);
     } finally {
       globalThis.fetch = originalFetch;
@@ -284,11 +330,7 @@ describe('OpenAI-compatible model', () => {
             {
               expression: '雑',
               reading: 'ざつ',
-              meaning: '',
-              contextMeaning: 'rough',
-              partOfSpeech: 'na-adjective',
-              exampleJapanese: '雑な説明だった。',
-              exampleEnglish: 'It was a rough explanation.',
+              meanings: [''],
             },
           ],
         })
@@ -299,7 +341,7 @@ describe('OpenAI-compatible model', () => {
       await expect(
         assistant().define('雑', '雑な説明だった。')
       ).rejects.toThrow(
-        /candidate response is invalid: candidates.0.meaning: must not be empty/
+        /candidate response is invalid: candidates.0.meanings.0: must not be empty/
       );
       expect(requestCount).toBe(3);
     } finally {
