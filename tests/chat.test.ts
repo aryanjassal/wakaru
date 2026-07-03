@@ -19,7 +19,7 @@ const WORD: SavedWord = {
   exampleJapanese: '私は警察官です。',
   exampleEnglish: 'I am a police officer.',
   tags: ['noun'],
-  ankiFields: { Front: '警察官' },
+  exportFields: { word: '警察官' },
   sourceText: '私は警察官です。',
   createdAt: '2026-01-01T00:00:00.000Z',
 };

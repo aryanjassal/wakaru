@@ -10,13 +10,9 @@ import { getTestConfig } from './config.js';
 
 describe('State', () => {
   const config = getTestConfig({
-    llm: {
-      provider: 'ollama',
-      model: 'test-model',
+    model: {
+      name: 'test-model',
       apiBase: 'http://localhost:11434',
-    },
-    storage: {
-      wordsDir: '/tmp/wakaru-test',
     },
   });
 
@@ -30,7 +26,7 @@ describe('State', () => {
     exampleJapanese: '曖昧な返事をした。',
     exampleEnglish: 'They gave an ambiguous answer.',
     tags: ['jp', 'adjective'],
-    ankiFields: {
+    exportFields: {
       Front: '曖昧',
       Back: 'ambiguous',
     },
@@ -41,6 +37,7 @@ describe('State', () => {
   it('initial state uses config and saved words', () => {
     const state = createInitialTuiState(
       config,
+      '/tmp/wakaru-test',
       1_000,
       {
         cols: 100,
@@ -54,7 +51,7 @@ describe('State', () => {
   });
 
   it('saved word updates are immutable', () => {
-    const initial = createInitialTuiState(config);
+    const initial = createInitialTuiState(config, '/tmp/wakaru-test');
     const updated = addSavedWord(initial, word);
 
     expect(initial.savedWords.length).toBe(0);
@@ -62,7 +59,7 @@ describe('State', () => {
   });
 
   it('toasts can be pruned by duration', () => {
-    const initial = createInitialTuiState(config, 0);
+    const initial = createInitialTuiState(config, '/tmp/wakaru-test', 0);
     const withToast = addToast(initial, {
       id: 'toast-1',
       message: 'Saved',

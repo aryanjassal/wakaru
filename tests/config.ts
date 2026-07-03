@@ -1,35 +1,30 @@
-import type { MiningCandidate, WakaruConfig } from '@/core/types.js';
-import {
-  miningCandidateSchema,
-  parseWithSchema,
-  wakaruConfigSchema,
-} from '@/core/schemas.js';
+import type { ClientConfig } from '@/client/schema/config.js';
+import type { MiningCandidate } from '@/core/types.js';
+import { clientConfigSchema } from '@/client/schema/config.js';
+import { miningCandidateSchema } from '@/core/schemas.js';
+import { parseWithSchema } from '@/core/utils.js';
 
 type TestConfigOverrides = Readonly<{
-  llm?: Partial<WakaruConfig['llm']>;
-  storage?: Partial<WakaruConfig['storage']>;
-  anki?: Partial<WakaruConfig['anki']>;
+  model?: Partial<ClientConfig['model']>;
+  export?: Partial<ClientConfig['export']>;
 }>;
 
 export function getTestConfig(
   overrides: TestConfigOverrides = {}
-): WakaruConfig {
-  return parseWithSchema(wakaruConfigSchema, {
-    llm: {
-      model: 'qwen2.5:7b',
+): ClientConfig {
+  return parseWithSchema(clientConfigSchema, {
+    model: {
+      name: 'qwen2.5:7b',
       apiBase: 'http://localhost:11434',
-      ...overrides.llm,
+      maxInputChars: 4096,
+      ...overrides.model,
     },
-    storage: {
-      wordsDir: '/tmp/wakaru-test',
-      ...overrides.storage,
-    },
-    anki: {
+    export: {
       fields: [
-        { name: 'Front', purpose: 'front field' },
-        { name: 'Back', purpose: 'back field' },
+        { key: 'Front', inherit: 'expression' },
+        { key: 'Back', modelPrompt: 'back field' },
       ],
-      ...overrides.anki,
+      ...overrides.export,
     },
   });
 }

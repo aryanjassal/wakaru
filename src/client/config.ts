@@ -1,24 +1,30 @@
-import type { WakaruConfig } from './types.js';
+import type { ClientConfig } from './schema/config.js';
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import {
-  parseJsonText,
-  parseWithSchema,
-  DEFAULT_WAKARU_CONFIG,
-  wakaruConfigSchema,
-} from './schemas.js';
+import { dirname } from 'node:path';
+import { parseJsonText, parseWithSchema } from '@/core/utils.js';
+import { clientConfigSchema } from './schema/config.js';
+import { resolveUserPath } from './utils.js';
 
-function expandHome(path: string): string {
-  if (path === '~') return homedir();
-  if (path.startsWith('~/')) return join(homedir(), path.slice(2));
-  return path;
-}
-
-export function resolveUserPath(path: string): string {
-  return resolve(expandHome(path));
-}
+const DEFAULT_CONFIG: ClientConfig = {
+  model: {
+    name: 'gemma4:12b',
+    apiBase: 'http://localhost:11434',
+    maxInputChars: 4096,
+  },
+  export: {
+    fields: [
+      {
+        key: 'expression',
+        inherit: 'expression',
+      },
+      {
+        key: 'sentence',
+        modelPrompt: 'Make a sentence with the input word',
+      },
+    ],
+  },
+};
 
 export function configPath(): string {
   return resolveUserPath(
@@ -30,13 +36,13 @@ export function configDir(): string {
   return dirname(configPath());
 }
 
-export function loadConfig(): WakaruConfig {
+export function loadConfig(): ClientConfig {
   const path = configPath();
   if (!existsSync(path)) {
     mkdirSync(dirname(path), { recursive: true });
     const config = parseWithSchema(
-      wakaruConfigSchema,
-      DEFAULT_WAKARU_CONFIG,
+      clientConfigSchema,
+      DEFAULT_CONFIG,
       `Config file ${path}`
     );
     writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
@@ -47,7 +53,7 @@ export function loadConfig(): WakaruConfig {
   const parsed = parseJsonText(text, `Config file ${path}`);
   if (!parsed.success) throw parsed.error;
   return parseWithSchema(
-    wakaruConfigSchema,
+    clientConfigSchema,
     parsed.value,
     `Config file ${path}`
   );

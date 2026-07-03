@@ -5,8 +5,7 @@ import type { SavedWord } from '@/tui/lib/types';
 import type { InputSnapshot, MineState } from './types';
 
 import { useCallback } from 'react';
-import { analyzeWithOllama as analyseWithOllama } from '@/core/llm';
-import { candidateToSavedWord, saveWord } from '@/core/storage';
+import { candidateToSavedWord, saveWord } from '@/client/storage/files';
 import { useTuiApp, useTuiCommand } from '@/tui/lib/context/app';
 import { errorMessage, readClipboard } from '@/tui/lib/utils';
 import {
@@ -20,7 +19,7 @@ import {
 // List of command identifiers implemented by this page. Simplifies command
 // invocation by not requiring memorisation of stringified command identifiers.
 export const MINE_COMMAND_IDS = {
-  analyzeWord: 'mine.analyzeWord',
+  analyseWord: 'mine.analyseWord',
   chatSelected: 'mine.chatSelected',
   clearWord: 'mine.clearWord',
   clearContext: 'mine.clearContext',
@@ -51,7 +50,7 @@ export function useMineCommands({
   wordRef,
   setMineState,
 }: MineCommandDeps): void {
-  const { addSavedWord, addToast, config, navigate } = useTuiApp();
+  const { addSavedWord, addToast, navigate, wakaru, wordsDir } = useTuiApp();
 
   // Synchronise page state to input state
   const syncInputs = useCallback((): InputSnapshot => {
@@ -92,7 +91,11 @@ export function useMineCommands({
 
     // Analyse word if possible, otherwise bail out and inform user
     try {
-      const candidates = await analyseWithOllama(config, word, { contextText });
+      const result = await wakaru.analyseVocabulary({
+        expression: word,
+        ...(contextText ? { context: contextText } : {}),
+      });
+      const candidates = result.candidates;
       setMineState((state) => setCandidates(state, candidates));
       addToast(
         `Found ${candidates.length} meaning${candidates.length === 1 ? '' : 's'}`,
@@ -103,7 +106,7 @@ export function useMineCommands({
       setMineState((state) => ({ ...state, status: 'error' }));
       addToast(message, 'error');
     }
-  }, [addToast, config, setMineState, stateRef, syncInputs]);
+  }, [addToast, setMineState, stateRef, syncInputs, wakaru]);
 
   // Add the selected candidate to inbox
   const addSelectedCandidate = useCallback(async (): Promise<void> => {
@@ -123,8 +126,9 @@ export function useMineCommands({
     try {
       const sourceText =
         snapshot.contextText.trim() || snapshot.wordText.trim();
-      const word: SavedWord = candidateToSavedWord(candidate, sourceText);
-      await saveWord(config, word);
+      const prepared = await wakaru.prepareVocabulary(candidate, sourceText);
+      const word: SavedWord = candidateToSavedWord(prepared, sourceText);
+      await saveWord(wordsDir, word);
       addSavedWord(word);
       setMineState((state) => ({
         ...markCandidate(state, candidate.id, 'added'),
@@ -136,7 +140,15 @@ export function useMineCommands({
       setMineState((state) => ({ ...state, status: 'error' }));
       addToast(message, 'error');
     }
-  }, [addSavedWord, addToast, config, setMineState, stateRef, syncInputs]);
+  }, [
+    addSavedWord,
+    addToast,
+    setMineState,
+    stateRef,
+    syncInputs,
+    wakaru,
+    wordsDir,
+  ]);
 
   // Clear the word input along with any related results
   const clearWord = useCallback((): void => {
@@ -234,8 +246,8 @@ export function useMineCommands({
   // Register commands
 
   useTuiCommand({
-    id: MINE_COMMAND_IDS.analyzeWord,
-    title: 'Analyze word',
+    id: MINE_COMMAND_IDS.analyseWord,
+    title: 'Analyse word',
     keybindings: [{ key: 'a', ctrl: true }],
     run: analyseWord,
   });

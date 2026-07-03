@@ -1,5 +1,5 @@
 import type {
-  AnkiFormattingConfig,
+  HtmlFormattingConfig,
   FormattedTextToken,
 } from './formatting-types.js';
 
@@ -199,9 +199,9 @@ function textToHtml(value: string, lineBreak: string): string {
   return escapeHtml(value).replace(/\r?\n/g, lineBreak);
 }
 
-export function formattedTextToAnkiHtml(
+export function formattedTextToHtml(
   value: string,
-  formatting: AnkiFormattingConfig
+  formatting: HtmlFormattingConfig
 ): string {
   return parseFormattedText(value)
     .map((token) => {

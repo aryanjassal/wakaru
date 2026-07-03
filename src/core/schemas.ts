@@ -1,4 +1,4 @@
-import type { MiningCandidate, SavedWord, WakaruConfig } from './types.js';
+import type { MiningCandidate, SavedWord } from './types.js';
 
 import { z } from 'zod/v4';
 import { parseFormattedText } from './formatting.js';
@@ -9,7 +9,6 @@ const optionalNonEmptyString = z
   .trim()
   .min(1, 'must not be empty')
   .optional();
-const positiveInt = z.number().int().positive();
 const stringList = z
   .array(nonEmptyString)
   .default([])
@@ -29,13 +28,13 @@ export const formattedTextSchema = nonEmptyString.superRefine(
   }
 );
 
-const generatedAnkiFieldValue = z.preprocess(
+const generatedExportFieldValue = z.preprocess(
   (value) => (typeof value === 'string' && !value.trim() ? null : value),
   formattedTextSchema.nullable()
 );
 
-const generatedAnkiFields = z
-  .record(z.string(), generatedAnkiFieldValue)
+const generatedExportFields = z
+  .record(z.string(), generatedExportFieldValue)
   .default({})
   .transform(
     (fields): Record<string, string> =>
@@ -46,148 +45,13 @@ const generatedAnkiFields = z
       )
   );
 
-export const DEFAULT_ANKI_FORMATTING = {
+export const DEFAULT_HTML_FORMATTING = {
   boldTemplate: '<strong>{{text}}</strong>',
   italicTemplate: '<em>{{text}}</em>',
   underlineTemplate: '<u>{{text}}</u>',
   readingTemplate: '<ruby>{{expression}}<rt>{{reading}}</rt></ruby>',
   lineBreak: '<br>',
 } as const;
-
-const formattingTemplate = z.string().min(1, 'must not be empty');
-const ankiFormattingSchema = z
-  .object({
-    boldTemplate: formattingTemplate.optional(),
-    italicTemplate: formattingTemplate.optional(),
-    underlineTemplate: formattingTemplate.optional(),
-    readingTemplate: formattingTemplate.optional(),
-    lineBreak: formattingTemplate.optional(),
-  })
-  .strict()
-  .transform((formatting) => ({
-    boldTemplate:
-      formatting.boldTemplate ?? DEFAULT_ANKI_FORMATTING.boldTemplate,
-    italicTemplate:
-      formatting.italicTemplate ?? DEFAULT_ANKI_FORMATTING.italicTemplate,
-    underlineTemplate:
-      formatting.underlineTemplate ?? DEFAULT_ANKI_FORMATTING.underlineTemplate,
-    readingTemplate:
-      formatting.readingTemplate ?? DEFAULT_ANKI_FORMATTING.readingTemplate,
-    lineBreak: formatting.lineBreak ?? DEFAULT_ANKI_FORMATTING.lineBreak,
-  }))
-  .superRefine((formatting, context) => {
-    const required = [
-      ['boldTemplate', formatting.boldTemplate, ['{{text}}']],
-      ['italicTemplate', formatting.italicTemplate, ['{{text}}']],
-      ['underlineTemplate', formatting.underlineTemplate, ['{{text}}']],
-      [
-        'readingTemplate',
-        formatting.readingTemplate,
-        ['{{expression}}', '{{reading}}'],
-      ],
-    ] as const;
-    for (const [path, template, placeholders] of required) {
-      for (const placeholder of placeholders) {
-        if (template.includes(placeholder)) continue;
-        context.addIssue({
-          code: 'custom',
-          path: [path],
-          message: `must include ${placeholder}`,
-          input: formatting,
-        });
-      }
-    }
-  });
-
-export const DEFAULT_ANKI_FIELDS = [
-  {
-    name: 'Front',
-    purpose:
-      'Recognition card front. Show the target expression prominently with its reading and include the source Japanese sentence.',
-  },
-  {
-    name: 'Back',
-    purpose:
-      'Recognition card back. Include reading, meaning, part of speech, the Japanese sentence, and English translation.',
-  },
-  {
-    name: 'Tags',
-    purpose:
-      'Space-separated Anki tags. Include wakaru, part of speech, and concise topic tags.',
-  },
-] as const;
-
-export const DEFAULT_WAKARU_CONFIG: WakaruConfig = {
-  llm: {
-    provider: 'ollama',
-    model: 'qwen3.5:9b',
-    apiBase: 'http://localhost:11434',
-    maxInputChars: 4096,
-  },
-  storage: {
-    wordsDir: '~/.config/wakaru/words',
-  },
-  anki: {
-    fields: [...DEFAULT_ANKI_FIELDS],
-    formatting: { ...DEFAULT_ANKI_FORMATTING },
-  },
-};
-
-const ankiFieldConfigSchema = z
-  .object({
-    name: nonEmptyString,
-    purpose: nonEmptyString,
-    optional: z.boolean().optional(),
-  })
-  .strict();
-
-export const wakaruConfigSchema = z
-  .object({
-    llm: z
-      .object({
-        provider: z.literal('ollama').optional(),
-        model: nonEmptyString.optional(),
-        apiBase: nonEmptyString.optional(),
-        maxInputChars: positiveInt.optional(),
-      })
-      .strict()
-      .optional(),
-    storage: z
-      .object({
-        wordsDir: nonEmptyString.optional(),
-      })
-      .strict()
-      .optional(),
-    anki: z
-      .object({
-        fields: z.array(ankiFieldConfigSchema).min(1).optional(),
-        formatting: ankiFormattingSchema.optional(),
-      })
-      .strict()
-      .optional(),
-  })
-  .strict()
-  .transform((config) => ({
-    llm: {
-      provider: 'ollama' as const,
-      model: config.llm?.model ?? DEFAULT_WAKARU_CONFIG.llm.model,
-      apiBase: (
-        config.llm?.apiBase ?? DEFAULT_WAKARU_CONFIG.llm.apiBase
-      ).replace(/\/+$/, ''),
-      maxInputChars:
-        config.llm?.maxInputChars ?? DEFAULT_WAKARU_CONFIG.llm.maxInputChars,
-    },
-    storage: {
-      wordsDir:
-        config.storage?.wordsDir ?? DEFAULT_WAKARU_CONFIG.storage.wordsDir,
-    },
-    anki: {
-      fields: config.anki?.fields ?? [...DEFAULT_WAKARU_CONFIG.anki.fields],
-      formatting: config.anki?.formatting ?? {
-        ...DEFAULT_WAKARU_CONFIG.anki.formatting,
-      },
-    },
-  })) satisfies z.ZodType<WakaruConfig>;
 
 const rawCandidateSchema = z.object({
   expression: nonEmptyString,
@@ -199,7 +63,9 @@ const rawCandidateSchema = z.object({
   exampleJapanese: optionalNonEmptyString,
   exampleEnglish: optionalNonEmptyString,
   tags: stringList,
-  ankiFields: generatedAnkiFields,
+  exportFields: generatedExportFields,
+  definitionSource: nonEmptyString.optional(),
+  exampleSource: nonEmptyString.optional(),
 });
 
 function aliasCandidateFields(value: unknown): unknown {
@@ -225,7 +91,7 @@ function aliasCandidateFields(value: unknown): unknown {
       item.example_english ??
       item.englishExample ??
       item.translation,
-    ankiFields: item.ankiFields ?? item.anki_fields ?? item.fields,
+    exportFields: item.exportFields ?? item.export_fields ?? item.fields,
   };
 }
 
@@ -291,81 +157,3 @@ export const savedWordSchema = z
   })) satisfies z.ZodType<SavedWord>;
 
 export const savedWordsSchema = z.array(savedWordSchema);
-
-export const ollamaGenerateResponseSchema = z
-  .object({
-    response: z.string().optional(),
-    error: z.string().optional(),
-  })
-  .loose();
-
-export class JsonValidationError extends Error {
-  constructor(
-    message: string,
-    readonly issues: readonly string[]
-  ) {
-    super(message);
-    this.name = 'JsonValidationError';
-  }
-}
-
-function issuePath(issue: z.core.$ZodIssue): string {
-  return issue.path.length ? issue.path.map(String).join('.') : 'root';
-}
-
-export function formatZodIssues(error: z.ZodError): readonly string[] {
-  return error.issues.map((issue) => `${issuePath(issue)}: ${issue.message}`);
-}
-
-export function toJsonValidationError(
-  label: string,
-  error: z.ZodError
-): JsonValidationError {
-  const issues = formatZodIssues(error);
-  const preview = issues.slice(0, 5).join('; ');
-  const suffix =
-    issues.length > 5 ? `; and ${issues.length - 5} more issue(s)` : '';
-  return new JsonValidationError(
-    `${label} is invalid: ${preview}${suffix}`,
-    issues
-  );
-}
-
-export type JsonParseResult =
-  | Readonly<{ success: true; value: unknown }>
-  | Readonly<{ success: false; error: JsonValidationError }>;
-
-export function parseJsonText(text: string, label = 'JSON'): JsonParseResult {
-  try {
-    const value = JSON.parse(text) as unknown;
-    return { success: true, value };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      success: false,
-      error: new JsonValidationError(`${label} is not valid JSON: ${message}`, [
-        message,
-      ]),
-    };
-  }
-}
-
-export function parseWithSchema<T>(
-  schema: z.ZodType<T>,
-  value: unknown,
-  label = 'JSON'
-): T {
-  const result = schema.safeParse(value);
-  if (!result.success) {
-    throw toJsonValidationError(label, result.error);
-  }
-  return result.data;
-}
-
-export function parseCandidates(text: string): readonly MiningCandidate[] {
-  const parsed = parseJsonText(text);
-  if (parsed.success) {
-    return parseWithSchema(z.array(miningCandidateSchema), parsed.value);
-  }
-  throw parsed.error;
-}

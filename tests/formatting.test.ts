@@ -1,10 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 import {
   FormattingSyntaxError,
-  formattedTextToAnkiHtml,
+  formattedTextToHtml,
   parseFormattedText,
 } from '@/core/formatting.js';
-import { DEFAULT_ANKI_FORMATTING } from '@/core/schemas.js';
+import { DEFAULT_HTML_FORMATTING } from '@/core/schemas.js';
 
 describe('canonical field formatting', () => {
   it('parses the single supported readable syntax', () => {
@@ -47,15 +47,12 @@ describe('canonical field formatting', () => {
 
   it('exports escaped HTML through configurable templates', () => {
     expect(
-      formattedTextToAnkiHtml(
-        '**A < B** {開発|かいはつ}',
-        DEFAULT_ANKI_FORMATTING
-      )
+      formattedTextToHtml('**A < B** {開発|かいはつ}', DEFAULT_HTML_FORMATTING)
     ).toBe('<strong>A &lt; B</strong> <ruby>開発<rt>かいはつ</rt></ruby>');
 
     expect(
-      formattedTextToAnkiHtml('{開発|かいはつ}', {
-        ...DEFAULT_ANKI_FORMATTING,
+      formattedTextToHtml('{開発|かいはつ}', {
+        ...DEFAULT_HTML_FORMATTING,
         readingTemplate: '{{expression}}[{{reading}}]',
       })
     ).toBe('開発[かいはつ]');

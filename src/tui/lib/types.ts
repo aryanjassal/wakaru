@@ -1,14 +1,15 @@
-import type { MiningCandidate, SavedWord, WakaruConfig } from '@/core/types.js';
+import type { ClientConfig } from '@/client/schema/config.js';
+import type { MiningCandidate, SavedWord } from '@/core/types.js';
 import type { TuiCommandId } from '../commands.js';
 
 export type {
-  AnkiFieldConfig,
-  AnkiFieldValues,
+  ExportFieldConfig,
+  ExportFieldValues,
   MiningCandidate,
   MiningCandidateStatus,
   SavedWord,
-  WakaruConfig,
 } from '@/core/types.js';
+export type { ClientConfig } from '@/client/schema/config.js';
 
 export type TuiMiningStatus = 'idle' | 'analysing' | 'saving' | 'error';
 
@@ -24,7 +25,8 @@ export type TuiState = Readonly<{
   nowMs: number;
   viewportCols: number;
   viewportRows: number;
-  config: WakaruConfig;
+  config: ClientConfig;
+  wordsDir: string;
   savedWords: readonly SavedWord[];
   toasts: readonly TuiToast[];
 }>;

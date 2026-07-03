@@ -1,4 +1,5 @@
 import type { CliRenderer, InputRenderable, KeyEvent } from '@opentui/core';
+import type { Wakaru } from '@/core/wakaru.js';
 import type { TuiRoute, TuiRouteTarget, TuiState } from './lib/types';
 import type { TuiCommand, TuiCommandId } from './commands';
 import type { TuiToastLevel } from './lib/context/app';
@@ -43,6 +44,7 @@ const SHELL_COMMAND_IDS = {
 
 type TuiAppProps = Readonly<{
   initialState: TuiState;
+  wakaru: Wakaru;
   stop: (code?: number) => Promise<void>;
 }>;
 
@@ -174,7 +176,7 @@ function MainContent() {
   );
 }
 
-export function TuiApp({ initialState, stop }: TuiAppProps) {
+export function TuiApp({ initialState, wakaru, stop }: TuiAppProps) {
   const renderer = useRenderer();
   const [state, setState] = useState(initialState);
   const [route, setRoute] = useState<TuiRoute>({ id: 'mine' });
@@ -291,6 +293,8 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
   const appContext = useMemo(
     () => ({
       config: state.config,
+      wordsDir: state.wordsDir,
+      wakaru,
       savedWords: state.savedWords,
       route,
       routeId: route.id,
@@ -315,9 +319,11 @@ export function TuiApp({ initialState, stop }: TuiAppProps) {
       route,
       runCommand,
       state.config,
+      state.wordsDir,
       state.savedWords,
       stop,
       setRouteState,
+      wakaru,
       toggleCommandPalette,
     ]
   );

@@ -5,7 +5,7 @@ export type FormattedTextToken =
   | Readonly<{ kind: 'underline'; value: string }>
   | Readonly<{ kind: 'reading'; expression: string; reading: string }>;
 
-export type AnkiFormattingConfig = Readonly<{
+export type HtmlFormattingConfig = Readonly<{
   boldTemplate: string;
   italicTemplate: string;
   underlineTemplate: string;

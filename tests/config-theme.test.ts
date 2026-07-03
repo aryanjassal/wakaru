@@ -2,11 +2,11 @@ import { describe, it, expect } from '@jest/globals';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { loadConfig } from '@/core/config.js';
+import { loadConfig } from '@/client/config.js';
 import { getTestConfig } from './config.js';
 
 describe('Config', () => {
-  it('loadConfig reads LLM and storage settings', async () => {
+  it('loadConfig reads model and export settings', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'wakaru-config-'));
     const path = join(dir, 'config.json');
     const previous = process.env.WAKARU_CONFIG;
@@ -16,11 +16,11 @@ describe('Config', () => {
         path,
         JSON.stringify(
           getTestConfig({
-            storage: { wordsDir: join(dir, 'words') },
-            anki: {
+            model: { name: 'qwen2.5:7b' },
+            export: {
               fields: [
-                { name: 'Front', purpose: 'front field' },
-                { name: 'Back', purpose: 'back field', optional: true },
+                { key: 'Front', inherit: 'expression' },
+                { key: 'Back', modelPrompt: 'back field', optional: true },
               ],
             },
           })
@@ -31,18 +31,14 @@ describe('Config', () => {
 
       const config = loadConfig();
 
-      expect(config.llm.model).toBe('qwen2.5:7b');
-      expect(config.llm.apiBase).toBe('http://localhost:11434');
-      expect(config.llm.maxInputChars).toBe(4_096);
-      expect(config.storage.wordsDir).toBe(join(dir, 'words'));
-      expect(config.anki.fields.map((field) => field.name)).toEqual([
+      expect(config.model.name).toBe('qwen2.5:7b');
+      expect(config.model.apiBase).toBe('http://localhost:11434');
+      expect(config.model.maxInputChars).toBe(4_096);
+      expect(config.export.fields.map((field) => field.key)).toEqual([
         'Front',
         'Back',
       ]);
-      expect(config.anki.formatting.boldTemplate).toBe(
-        '<strong>{{text}}</strong>'
-      );
-      expect(config.anki.fields[1]?.optional).toBe(true);
+      expect(config.export.fields[1]?.optional).toBe(true);
     } finally {
       if (previous === undefined) {
         delete process.env.WAKARU_CONFIG;
@@ -62,14 +58,15 @@ describe('Config', () => {
       await writeFile(
         path,
         JSON.stringify({
-          llm: { provider: 'openai', model: '' },
+          model: { name: '', apiBase: '', maxInputChars: 0 },
+          export: { fields: [] },
         }),
         'utf8'
       );
       process.env.WAKARU_CONFIG = path;
 
       expect(() => loadConfig()).toThrow(
-        /Config file .* is invalid: llm.provider: Invalid input: expected "ollama"/
+        /Config file .* is invalid: model.name: must not be empty/
       );
     } finally {
       if (previous === undefined) {
@@ -90,9 +87,9 @@ describe('Config', () => {
     try {
       const config = loadConfig();
       const saved = JSON.parse(await readFile(path, 'utf8')) as {
-        llm: { model: string };
+        model: { name: string };
       };
-      expect(saved.llm.model).toBe(config.llm.model);
+      expect(saved.model.name).toBe(config.model.name);
     } finally {
       if (previous === undefined) delete process.env.WAKARU_CONFIG;
       else process.env.WAKARU_CONFIG = previous;

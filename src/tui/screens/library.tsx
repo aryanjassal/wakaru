@@ -1,10 +1,10 @@
-import { ankiImportPath, writeAnkiImport } from '@/core/storage.js';
+import { tsvExportPath, writeTsvExport } from '@/client/export/tsv.js';
 import { Button, Separator } from '../components/index.js';
 import { useTuiApp, useTuiCommand } from '../lib/context/app.js';
 import { colorscheme } from '../lib/theme.js';
 
 const LIBRARY_COMMAND_IDS = {
-  exportAnki: 'library.exportAnki',
+  exportTsv: 'library.exportTsv',
 } as const;
 
 function errorMessage(error: unknown): string {
@@ -12,15 +12,15 @@ function errorMessage(error: unknown): string {
 }
 
 export function LibraryScreen() {
-  const { addToast, config, navigate, savedWords } = useTuiApp();
+  const { addToast, config, navigate, savedWords, wordsDir } = useTuiApp();
 
   useTuiCommand({
-    id: LIBRARY_COMMAND_IDS.exportAnki,
-    title: 'Export Anki import file',
+    id: LIBRARY_COMMAND_IDS.exportTsv,
+    title: 'Export TSV file',
     keybindings: [{ key: 'e', ctrl: true }],
     run: async () => {
       try {
-        const path = await writeAnkiImport(config, savedWords);
+        const path = await writeTsvExport(config, wordsDir, savedWords);
         addToast(`Wrote ${path}.`, 'success');
       } catch (error) {
         addToast(errorMessage(error), 'error');
@@ -46,7 +46,7 @@ export function LibraryScreen() {
         fg={colorscheme.muted}
       />
       <text
-        content={`Anki import: ${ankiImportPath(config)}`}
+        content={`TSV export: ${tsvExportPath(wordsDir)}`}
         fg={colorscheme.muted}
       />
       <Separator />

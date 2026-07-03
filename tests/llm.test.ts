@@ -1,25 +1,35 @@
 import { describe, it, expect } from '@jest/globals';
-import { readFile, mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { analyzeWithOllama, chatWithOllama } from '@/core/llm.js';
+import { OpenAIModel } from '@/client/model/openai.js';
+import { AssistantService } from '@/core/assistant.js';
 import { getTestConfig } from './config.js';
 
-describe('LLM', () => {
+describe('OpenAI-compatible model', () => {
   const config = getTestConfig({
-    llm: {
-      provider: 'ollama',
-      model: 'test-model',
+    model: {
+      name: 'test-model',
       apiBase: 'http://ollama.test',
     },
-    storage: { wordsDir: '/tmp/wakaru-test' },
-    anki: {
+    export: {
       fields: [
-        { name: 'Front', purpose: 'Target expression' },
-        { name: 'Notes', purpose: 'Additional context', optional: true },
+        { key: 'Front', modelPrompt: 'Target expression' },
+        { key: 'Notes', modelPrompt: 'Additional context', optional: true },
       ],
     },
   });
+
+  function assistant(): AssistantService {
+    return new AssistantService(
+      new OpenAIModel({
+        model: config.model.name,
+        baseUrl: config.model.apiBase,
+        apiKey: config.model.apiKey,
+      }),
+      {
+        fields: config.export.fields,
+        maxInputChars: config.model.maxInputChars,
+      }
+    );
+  }
 
   function requestUrl(input: Parameters<typeof fetch>[0]): string {
     if (typeof input === 'string') return input;
@@ -34,107 +44,113 @@ describe('LLM', () => {
     return init.body;
   }
 
-  it('analyzeWithOllama sends generate request and normalizes candidates', async () => {
+  function requestPrompt(body: Record<string, unknown>): string {
+    const messages = body.messages as readonly { content?: unknown }[];
+    return String(messages[0]?.content);
+  }
+
+  function modelResponse(content: unknown): Response {
+    return new Response(
+      JSON.stringify({
+        choices: [{ message: { content: JSON.stringify(content) } }],
+      }),
+      { status: 200 }
+    );
+  }
+
+  it('analyseWithModel sends a request and normalises candidates', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (url, init) => {
-      expect(requestUrl(url)).toBe('http://ollama.test/api/generate');
+      expect(requestUrl(url)).toBe('http://ollama.test/v1/chat/completions');
       const body = JSON.parse(requestBody(init)) as Record<string, unknown>;
       expect(body.model).toBe('test-model');
-      expect(body.stream).toBe(false);
-      expect(body.format).toBe('json');
-      expect(String(body.prompt)).toMatch(/Word or phrase:/);
-      expect(String(body.prompt)).toMatch(/Context sentence:/);
-      expect(String(body.prompt)).toMatch(/Do not discover extra vocabulary/);
-      expect(String(body.prompt)).toMatch(/Anki note fields to populate:/);
-      expect(String(body.prompt)).toMatch(/Front \(required\):/);
-      expect(String(body.prompt)).toMatch(/Notes \(optional\):/);
+      expect(body.response_format).toEqual({ type: 'json_object' });
+      const prompt = requestPrompt(body);
+      expect(prompt).toMatch(/Word or phrase:/);
+      expect(prompt).toMatch(/Context sentence:/);
+      expect(prompt).toMatch(/Do not discover extra vocabulary/);
+      expect(prompt).toMatch(/Export fields to populate:/);
+      expect(prompt).toMatch(/Front \(required\):/);
+      expect(prompt).toMatch(/Notes \(optional\):/);
 
       return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            response: JSON.stringify({
-              candidates: [
-                {
-                  expression: '稼ぐ',
-                  reading: 'かせぐ',
-                  meaning: 'to earn',
-                  contextMeaning: 'to make money',
-                  partOfSpeech: 'verb',
-                  exampleJapanese: '彼は生活費を稼いでいる。',
-                  exampleEnglish: 'He earns his living expenses.',
-                  tags: ['verb'],
-                  ankiFields: {
-                    Front: '稼ぐ',
-                    Back: 'かせぐ\nto earn',
-                    Tags: 'wakaru verb',
-                    Notes: null,
-                  },
-                },
-              ],
-            }),
-          }),
-          { status: 200 }
-        )
+        modelResponse({
+          candidates: [
+            {
+              expression: '稼ぐ',
+              reading: 'かせぐ',
+              meaning: 'to earn',
+              contextMeaning: 'to make money',
+              partOfSpeech: 'verb',
+              exampleJapanese: '彼は生活費を稼いでいる。',
+              exampleEnglish: 'He earns his living expenses.',
+              tags: ['verb'],
+              exportFields: {
+                Front: '稼ぐ',
+                Back: 'かせぐ\nto earn',
+                Tags: 'wakaru verb',
+                Notes: null,
+              },
+            },
+          ],
+        })
       );
     };
 
     try {
-      const candidates = await analyzeWithOllama(config, '稼ぐ', {
-        contextText: '彼は生活費を稼いでいる。',
-      });
+      const candidates = await assistant().define(
+        '稼ぐ',
+        '彼は生活費を稼いでいる。'
+      );
 
       expect(candidates.length).toBe(1);
       expect(candidates[0]?.expression).toBe('稼ぐ');
       expect(candidates[0]?.status).toBe('pending');
       expect(candidates[0]?.tags).toEqual(['verb']);
-      expect(candidates[0]?.ankiFields.Front).toBe('稼ぐ');
-      expect(candidates[0]?.ankiFields.Notes).toBeUndefined();
+      expect(candidates[0]?.exportFields.Front).toBe('稼ぐ');
+      expect(candidates[0]?.exportFields.Notes).toBeUndefined();
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  it('analyzeWithOllama tolerates common model response shape drift', async () => {
+  it('analyseWithModel tolerates common model response shape drift', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = () =>
       Promise.resolve(
-        new Response(
-          JSON.stringify({
-            response: JSON.stringify([
-              {
-                word: '警察官',
-                furigana: 'けいさつかん',
-                definition: 'police officer',
-                part_of_speech: 'noun',
-                pitchAccent: '0',
-                fields: {
-                  Front: '警察官',
-                  Attempts: '1',
-                },
-              },
-            ]),
-          }),
-          { status: 200 }
-        )
+        modelResponse([
+          {
+            word: '警察官',
+            furigana: 'けいさつかん',
+            definition: 'police officer',
+            part_of_speech: 'noun',
+            pitchAccent: '0',
+            fields: {
+              Front: '警察官',
+              Attempts: '1',
+            },
+          },
+        ])
       );
 
     try {
-      const candidates = await analyzeWithOllama(config, '警察官', {
-        contextText: 'はい、私は警察官です。',
-      });
+      const candidates = await assistant().define(
+        '警察官',
+        'はい、私は警察官です。'
+      );
 
       expect(candidates[0]?.expression).toBe('警察官');
       expect(candidates[0]?.reading).toBe('けいさつかん');
       expect(candidates[0]?.meaning).toBe('police officer');
       expect(candidates[0]?.contextMeaning).toBe('police officer');
       expect(candidates[0]?.partOfSpeech).toBe('noun');
-      expect(candidates[0]?.ankiFields.Attempts).toBe('1');
+      expect(candidates[0]?.exportFields.Attempts).toBe('1');
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  it('analyzeWithOllama reports HTTP failures', async () => {
+  it('analyseWithModel reports HTTP failures', async () => {
     const originalFetch = globalThis.fetch;
     let requestCount = 0;
     globalThis.fetch = () => {
@@ -143,16 +159,14 @@ describe('LLM', () => {
     };
 
     try {
-      await expect(analyzeWithOllama(config, '失敗')).rejects.toThrow(
-        /HTTP 500/
-      );
+      await expect(assistant().define('失敗')).rejects.toThrow(/HTTP 500/);
       expect(requestCount).toBe(3);
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  it('analyzeWithOllama succeeds on the third total attempt', async () => {
+  it('analyseWithModel succeeds on the third total attempt', async () => {
     const originalFetch = globalThis.fetch;
     let requestCount = 0;
     globalThis.fetch = () => {
@@ -161,26 +175,21 @@ describe('LLM', () => {
         return Promise.resolve(new Response('retry', { status: 500 }));
       }
       return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            response: JSON.stringify({
-              candidates: [
-                {
-                  expression: '試す',
-                  reading: 'ためす',
-                  meaning: 'to try',
-                  ankiFields: { Front: '{試す|ためす}' },
-                },
-              ],
-            }),
-          }),
-          { status: 200 }
-        )
+        modelResponse({
+          candidates: [
+            {
+              expression: '試す',
+              reading: 'ためす',
+              meaning: 'to try',
+              exportFields: { Front: '{試す|ためす}' },
+            },
+          ],
+        })
       );
     };
 
     try {
-      const candidates = await analyzeWithOllama(config, '試す');
+      const candidates = await assistant().define('試す');
       expect(candidates[0]?.expression).toBe('試す');
       expect(requestCount).toBe(3);
     } finally {
@@ -188,46 +197,18 @@ describe('LLM', () => {
     }
   });
 
-  it('chatWithOllama returns markdown and an optional candidate', async () => {
+  it('chatWithModel returns markdown and an optional candidate', async () => {
     const originalFetch = globalThis.fetch;
     let requestCount = 0;
     globalThis.fetch = (_url, init) => {
       requestCount += 1;
       const body = JSON.parse(requestBody(init)) as Record<string, unknown>;
       if (requestCount === 2) {
-        expect(String(body.prompt)).toMatch(/independently validating/);
+        expect(requestPrompt(body)).toMatch(/independently validating/);
         return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              response: JSON.stringify({
-                candidates: [
-                  {
-                    expression: '稼ぐ',
-                    reading: 'かせぐ',
-                    meaning: 'to earn',
-                    contextMeaning: 'to earn money',
-                    partOfSpeech: 'verb',
-                    exampleJapanese: '生活費を稼ぐ。',
-                    exampleEnglish: 'Earn living expenses.',
-                    tags: ['verb'],
-                    ankiFields: { Front: '稼ぐ' },
-                  },
-                ],
-              }),
-            }),
-            { status: 200 }
-          )
-        );
-      }
-      expect(String(body.prompt)).toMatch(/Attached vocabulary context/);
-      expect(String(body.prompt)).toMatch(/USER: Why is this a verb/);
-      expect(body.options).toEqual({ temperature: 0.2 });
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            response: JSON.stringify({
-              markdown: '**稼ぐ** is a godan verb.',
-              candidate: {
+          modelResponse({
+            candidates: [
+              {
                 expression: '稼ぐ',
                 reading: 'かせぐ',
                 meaning: 'to earn',
@@ -236,18 +217,35 @@ describe('LLM', () => {
                 exampleJapanese: '生活費を稼ぐ。',
                 exampleEnglish: 'Earn living expenses.',
                 tags: ['verb'],
-                ankiFields: { Front: '稼ぐ' },
+                exportFields: { Front: '稼ぐ' },
               },
-            }),
-          }),
-          { status: 200 }
-        )
+            ],
+          })
+        );
+      }
+      expect(requestPrompt(body)).toMatch(/Attached vocabulary context/);
+      expect(requestPrompt(body)).toMatch(/USER: Why is this a verb/);
+      expect(body.temperature).toBe(0.2);
+      return Promise.resolve(
+        modelResponse({
+          markdown: '**稼ぐ** is a godan verb.',
+          candidate: {
+            expression: '稼ぐ',
+            reading: 'かせぐ',
+            meaning: 'to earn',
+            contextMeaning: 'to earn money',
+            partOfSpeech: 'verb',
+            exampleJapanese: '生活費を稼ぐ。',
+            exampleEnglish: 'Earn living expenses.',
+            tags: ['verb'],
+            exportFields: { Front: '稼ぐ' },
+          },
+        })
       );
     };
 
     try {
-      const response = await chatWithOllama(
-        config,
+      const response = await assistant().chat(
         [
           {
             id: 'saved-1',
@@ -259,7 +257,7 @@ describe('LLM', () => {
             exampleJapanese: '生活費を稼ぐ。',
             exampleEnglish: 'Earn living expenses.',
             tags: ['verb'],
-            ankiFields: { Front: '稼ぐ' },
+            exportFields: { Front: '稼ぐ' },
             sourceText: '生活費を稼ぐ。',
             createdAt: '2026-01-01T00:00:00.000Z',
           },
@@ -275,58 +273,37 @@ describe('LLM', () => {
     }
   });
 
-  it('analyzeWithOllama reports readable candidate schema errors', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'wakaru-llm-log-'));
-    const previousConfig = process.env.WAKARU_CONFIG;
+  it('assistant reports readable candidate schema errors', async () => {
     const originalFetch = globalThis.fetch;
-    process.env.WAKARU_CONFIG = join(dir, 'config.json');
-    globalThis.fetch = () =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify({
-            response: JSON.stringify({
-              candidates: [
-                {
-                  expression: '雑',
-                  reading: 'ざつ',
-                  meaning: '',
-                  contextMeaning: 'rough',
-                  partOfSpeech: 'na-adjective',
-                  exampleJapanese: '雑な説明だった。',
-                  exampleEnglish: 'It was a rough explanation.',
-                },
-              ],
-            }),
-          }),
-          { status: 200 }
-        )
+    let requestCount = 0;
+    globalThis.fetch = () => {
+      requestCount += 1;
+      return Promise.resolve(
+        modelResponse({
+          candidates: [
+            {
+              expression: '雑',
+              reading: 'ざつ',
+              meaning: '',
+              contextMeaning: 'rough',
+              partOfSpeech: 'na-adjective',
+              exampleJapanese: '雑な説明だった。',
+              exampleEnglish: 'It was a rough explanation.',
+            },
+          ],
+        })
       );
+    };
 
     try {
       await expect(
-        analyzeWithOllama(config, '雑', { contextText: '雑な説明だった。' })
+        assistant().define('雑', '雑な説明だった。')
       ).rejects.toThrow(
         /candidate response is invalid: candidates.0.meaning: must not be empty/
       );
-      const log = await readFile(join(dir, 'ollama-failures.jsonl'), 'utf8');
-      const entries = log
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line) as Record<string, unknown>);
-      const entry = entries.at(-1)!;
-      expect(entries).toHaveLength(3);
-      expect(entry.model).toBe('test-model');
-      expect(entry.wordText).toBe('雑');
-      expect(entry.contextText).toBe('雑な説明だった。');
-      expect(String(entry.responseText)).toMatch(/雑/);
+      expect(requestCount).toBe(3);
     } finally {
       globalThis.fetch = originalFetch;
-      if (previousConfig === undefined) {
-        delete process.env.WAKARU_CONFIG;
-      } else {
-        process.env.WAKARU_CONFIG = previousConfig;
-      }
-      await rm(dir, { recursive: true, force: true });
     }
   });
 });

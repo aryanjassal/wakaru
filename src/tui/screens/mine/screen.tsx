@@ -128,8 +128,8 @@ export function MineScreen() {
       )}
       <box width="100%" flexDirection="row" columnGap={2}>
         <Button
-          label="Analyze"
-          action={(ctx) => ctx.runCommand(MINE_COMMAND_IDS.analyzeWord)}
+          label="Analyse"
+          action={(ctx) => ctx.runCommand(MINE_COMMAND_IDS.analyseWord)}
         />
         <Button
           label="Chat"

@@ -39,15 +39,15 @@ export function WordDetails({ item }: Readonly<{ item: ChatContextItem }>) {
           ))}
         </box>
       </box>
-      <Separator title=" Anki Fields " titleColor={colorscheme.muted} />
+      <Separator title=" Export Fields " titleColor={colorscheme.muted} />
       <box flexDirection="row" columnGap={3}>
         <box>
-          {Object.keys(word.ankiFields).map((v, i) => (
+          {Object.keys(word.exportFields).map((v, i) => (
             <text key={i}>{v}</text>
           ))}
         </box>
         <box>
-          {Object.values(word.ankiFields).map((v, i) => (
+          {Object.values(word.exportFields).map((v, i) => (
             <FormattedText key={i} value={v} />
           ))}
         </box>

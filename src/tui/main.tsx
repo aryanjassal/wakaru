@@ -1,10 +1,12 @@
 import { createCliRenderer } from '@opentui/core';
 import { createRoot } from '@opentui/react';
-import { loadConfig } from '@/core/config';
-import { loadSavedWords } from '@/core/storage';
+import { createWakaru } from '@/client/create';
+import { loadConfig } from '@/client/config';
+import { loadSavedWords } from '@/client/storage/files';
 import { TuiApp } from './app';
 import { addToast, createInitialTuiState, createToast } from './lib/state';
 import { colorscheme } from './lib/theme';
+import { dictionaryPath, tokeniserDictionaryPath, tuiWordsDir } from './paths';
 
 const UI_FPS_CAP = 60;
 
@@ -19,9 +21,17 @@ function clampViewportAxis(
 }
 
 const config = loadConfig();
-const loadedWords = await loadSavedWords(config);
+const wordsDir = tuiWordsDir();
+const loadedWords = await loadSavedWords(wordsDir);
+const wakaru = createWakaru({
+  config,
+  dictionaryPath: dictionaryPath(),
+  tokeniserDictionaryPath: tokeniserDictionaryPath(),
+});
+
 let initialState = createInitialTuiState(
   config,
+  wordsDir,
   Date.now(),
   {
     cols: clampViewportAxis(process.stdout.columns, 120),
@@ -70,7 +80,7 @@ process.once('SIGINT', () => void stopApp(0));
 process.once('SIGTERM', () => void stopApp(0));
 
 createRoot(renderer).render(
-  <TuiApp initialState={initialState} stop={stopApp} />
+  <TuiApp initialState={initialState} wakaru={wakaru} stop={stopApp} />
 );
 
 await stopPromise;

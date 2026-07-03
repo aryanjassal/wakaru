@@ -1,5 +1,5 @@
 export const NAME = 'Wakaru';
-export const TAGLINE = 'Japanese sentence and word miner for Anki';
+export const TAGLINE = 'Japanese sentence and word miner';
 
 // Credit to folke for the color scheme
 // https://github.com/folke/tokyonight.nvim/blob/main/lua/tokyonight/colors/storm.lua

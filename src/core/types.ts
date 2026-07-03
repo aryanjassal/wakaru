@@ -1,16 +1,12 @@
-import type { AnkiFormattingConfig } from './formatting-types.js';
-
-export type ThemeName = 'night';
-
 export type MiningCandidateStatus = 'pending' | 'added';
 
-export type AnkiFieldConfig = Readonly<{
+export type ExportFieldConfig = Readonly<{
   name: string;
   purpose: string;
   optional?: boolean | undefined;
 }>;
 
-export type AnkiFieldValues = Readonly<Record<string, string>>;
+export type ExportFieldValues = Readonly<Record<string, string>>;
 
 export type MiningCandidate = Readonly<{
   id: string;
@@ -23,7 +19,9 @@ export type MiningCandidate = Readonly<{
   exampleJapanese: string;
   exampleEnglish: string;
   tags: readonly string[];
-  ankiFields: AnkiFieldValues;
+  exportFields: ExportFieldValues;
+  definitionSource?: string | undefined;
+  exampleSource?: string | undefined;
   status: MiningCandidateStatus;
 }>;
 
@@ -48,23 +46,7 @@ export type ChatGenerationOptions = Readonly<{
   temperature?: number | undefined;
 }>;
 
-export type WakaruConfig = Readonly<{
-  llm: Readonly<{
-    provider: 'ollama';
-    model: string;
-    apiBase: string;
-    maxInputChars: number;
-  }>;
-  storage: Readonly<{
-    wordsDir: string;
-  }>;
-  anki: Readonly<{
-    fields: readonly AnkiFieldConfig[];
-    formatting: AnkiFormattingConfig;
-  }>;
-}>;
-
 export type {
-  AnkiFormattingConfig,
+  HtmlFormattingConfig,
   FormattedTextToken,
 } from './formatting-types.js';

@@ -1,3 +1,8 @@
 node_modules
 dist
 .env
+assets/source/*.xml
+assets/runtime/dictionary.sqlite*
+assets/runtime/kuromoji/*
+!assets/source/.gitkeep
+!assets/runtime/kuromoji/.gitkeep

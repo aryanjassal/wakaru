@@ -10,8 +10,7 @@ import type { ChatCommandFragment } from './commands.js';
 
 import { SyntaxStyle, TextAttributes } from '@opentui/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { chatWithOllama } from '@/core/llm.js';
-import { candidateToSavedWord, saveWord } from '@/core/storage.js';
+import { candidateToSavedWord, saveWord } from '@/client/storage/files.js';
 import {
   Button,
   Loader,
@@ -303,8 +302,7 @@ export function ChatScreen({
     replaceComposerText('');
     setBusy(true);
     try {
-      const response: ChatResponse = await chatWithOllama(
-        app.config,
+      const response: ChatResponse = await app.wakaru.chat(
         contexts.map((context) => context.value),
         messages,
         { temperature: state.temperature }
@@ -339,8 +337,12 @@ export function ChatScreen({
           ? source.sourceText
           : (source?.exampleJapanese ?? candidate.exampleJapanese);
       try {
-        const word = candidateToSavedWord(candidate, sourceText);
-        await saveWord(app.config, word);
+        const prepared = await app.wakaru.prepareVocabulary(
+          candidate,
+          sourceText
+        );
+        const word = candidateToSavedWord(prepared, sourceText);
+        await saveWord(app.wordsDir, word);
         app.addSavedWord(word);
         app.addToast(`Saved ${word.expression}.`, 'success');
       } catch (error) {

@@ -26,6 +26,23 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/core/**/*.ts', 'src/core/**/*.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['node:*', '@/client/*', '../client/*'],
+              message:
+                'Core must remain runtime-agnostic; inject this capability through a core port.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['eslint.config.js', 'jest.config.js', 'prettier.config.js'],
     extends: [tseslint.configs.disableTypeChecked],
   },
