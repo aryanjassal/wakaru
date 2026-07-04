@@ -1,12 +1,12 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type {
   ClientConfig,
-  SavedWord,
   TuiRoute,
   TuiRouteTarget,
   TuiToast,
 } from '../types.js';
 import type { Wakaru } from '@/core/wakaru.js';
+import type { WordStore } from '@/client/storage/words.js';
 import type {
   TuiCommand,
   TuiCommandDisposer,
@@ -26,12 +26,11 @@ export type TuiToastLevel = TuiToast['level'];
 
 export type TuiAppContextValue = Readonly<{
   config: ClientConfig;
-  wordsDir: string;
+  exportDirectory: string;
   wakaru: Wakaru;
-  savedWords: readonly SavedWord[];
+  wordStore: WordStore;
   route: TuiRoute;
   routeId: TuiRoute['id'];
-  addSavedWord: (word: SavedWord) => void;
   addToast: (message: string, level?: TuiToastLevel) => void;
   navigate: (target: TuiRouteTarget) => void;
   navigateOffset: (offset: 1 | -1) => void;

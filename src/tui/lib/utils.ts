@@ -68,3 +68,18 @@ export function toastText(
     .map((toast) => `${toast.level}: ${toast.message}`)
     .join('\n');
 }
+
+// Mining candidate tags include their sources, like `jmdict` or `jmnedic`. The
+// sources are relevant as `jmnedic` matches are names, and `jmdict` matches are
+// actual definitions. These words might not mean anything to the user so these
+// specific words are replaced, otherwise the word passes through.
+export function humaniseTag(tag: string): string {
+  switch (tag) {
+    case 'jmdict':
+      return 'definition';
+    case 'jmnedict':
+      return 'name';
+    default:
+      return tag;
+  }
+}

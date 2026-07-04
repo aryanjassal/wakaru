@@ -13,22 +13,13 @@ const stringList = z
   .default([])
   .transform((items) => [...new Set(items)]);
 
-const generatedExportFieldValue = z.preprocess(
-  (value) => (typeof value === 'string' && !value.trim() ? null : value),
-  nonEmptyString.nullable()
-);
-
 const generatedExportFields = z
-  .record(z.string(), generatedExportFieldValue)
+  .record(
+    nonEmptyString,
+    z.preprocess((value) => (value == null ? '' : value), z.string())
+  )
   .default({})
-  .transform(
-    (fields): Record<string, string> =>
-      Object.fromEntries(
-        Object.entries(fields).filter((entry): entry is [string, string] =>
-          Boolean(entry[0].trim() && entry[1]?.trim())
-        )
-      )
-  );
+  .transform((fields): Record<string, string> => ({ ...fields }));
 
 export const candidateDetailsSchema = z
   .object({
@@ -43,7 +34,20 @@ export const candidateDetailsSchema = z
       .optional(),
     provenance: z
       .object({
-        definition: optionalNonEmptyString,
+        definition: z
+          .discriminatedUnion('kind', [
+            z
+              .object({
+                kind: z.literal('dictionary'),
+                dictionary: nonEmptyString,
+                entryId: nonEmptyString,
+                senseId: nonEmptyString,
+              })
+              .strict(),
+            z.object({ kind: z.literal('llm') }).strict(),
+            z.object({ kind: z.literal('manual') }).strict(),
+          ])
+          .optional(),
         example: optionalNonEmptyString,
       })
       .optional(),

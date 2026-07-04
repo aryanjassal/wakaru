@@ -38,6 +38,8 @@ describe('DefaultVocabularyService', () => {
         {
           id: 'jmdict:1:0',
           source: 'jmdict',
+          entryId: '1',
+          senseId: '0',
           expression: '稼ぐ',
           reading: 'かせぐ',
           meanings: ['to earn'],
@@ -56,9 +58,12 @@ describe('DefaultVocabularyService', () => {
 
     expect(lookup.mock.calls[0]?.[0]).toContain('稼ぐ');
     expect(result.source).toBe('dictionary');
-    expect(result.candidates[0]?.details?.provenance?.definition).toBe(
-      'jmdict'
-    );
+    expect(result.candidates[0]?.details?.provenance?.definition).toEqual({
+      kind: 'dictionary',
+      dictionary: 'jmdict',
+      entryId: '1',
+      senseId: '0',
+    });
   });
 
   it('uses the model only to rank dictionary candidates in context', async () => {
@@ -66,6 +71,8 @@ describe('DefaultVocabularyService', () => {
       ['first', 'second'].map((id, index) => ({
         id,
         source: 'jmdict' as const,
+        entryId: '1',
+        senseId: String(index),
         expression: '掛ける',
         reading: 'かける',
         meanings: [`meaning ${index}`],
@@ -110,7 +117,9 @@ describe('DefaultVocabularyService', () => {
     const result = await service.analyse({ expression: '未知語' });
 
     expect(result.source).toBe('llm');
-    expect(result.candidates[0]?.details?.provenance?.definition).toBe('llm');
+    expect(result.candidates[0]?.details?.provenance?.definition).toEqual({
+      kind: 'llm',
+    });
   });
 
   it('does not invoke contextual ranking while the model is unavailable', async () => {
@@ -126,6 +135,8 @@ describe('DefaultVocabularyService', () => {
           {
             id: 'jmdict:1:0',
             source: 'jmdict',
+            entryId: '1',
+            senseId: '0',
             expression: '掛ける',
             reading: 'かける',
             meanings: ['to hang'],
@@ -146,5 +157,19 @@ describe('DefaultVocabularyService', () => {
     expect(result.source).toBe('dictionary');
     expect(result.candidates).toHaveLength(1);
     expect(rank).not.toHaveBeenCalled();
+  });
+
+  it('propagates enrichment failures instead of returning an incomplete candidate', async () => {
+    const failure = new Error('invalid model response');
+    const service = new DefaultVocabularyService(
+      tokeniser,
+      { lookup: () => [] },
+      model({ addExample: () => Promise.reject(failure) })
+    );
+    const candidate = createTestCandidate({
+      details: { partOfSpeech: ['noun'] },
+    });
+
+    await expect(service.prepare(candidate, '文脈')).rejects.toBe(failure);
   });
 });

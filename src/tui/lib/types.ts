@@ -21,8 +21,7 @@ export type TuiState = Readonly<{
   viewportCols: number;
   viewportRows: number;
   config: ClientConfig;
-  wordsDir: string;
-  savedWords: readonly SavedWord[];
+  exportDirectory: string;
   toasts: readonly TuiToast[];
 }>;
 

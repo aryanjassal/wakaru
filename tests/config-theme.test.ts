@@ -33,7 +33,7 @@ describe('Config', () => {
 
       expect(config.model.name).toBe('qwen2.5:7b');
       expect(config.model.apiBase).toBe('http://localhost:11434');
-      expect(config.model.maxInputChars).toBe(4_096);
+      expect(config.model.contextWindow).toBe(32_768);
       expect(config.export.fields.map((field) => field.key)).toEqual([
         'Front',
         'Back',
@@ -58,7 +58,7 @@ describe('Config', () => {
       await writeFile(
         path,
         JSON.stringify({
-          model: { name: '', apiBase: '', maxInputChars: 0 },
+          model: { name: '', apiBase: '', contextWindow: 0 },
           export: { fields: [] },
         }),
         'utf8'

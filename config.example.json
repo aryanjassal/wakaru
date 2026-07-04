@@ -2,7 +2,7 @@
   "model": {
     "name": "qwen3.5:9b",
     "apiBase": "http://localhost:11434",
-    "maxInputChars": 4096
+    "contextWindow": 32768
   },
   "export": {
     "fields": [

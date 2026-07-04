@@ -1,8 +1,6 @@
 import type { MineState } from './types';
 import type { MiningCandidate } from '@/tui/lib/types';
 
-import { truncate } from '@/tui/lib/utils';
-
 export function createInitialMineState(): MineState {
   return {
     contextText: '',
@@ -33,12 +31,13 @@ export function selectedCandidate(state: MineState): MiningCandidate | null {
 
 export function setCandidates(
   state: MineState,
-  candidates: readonly MiningCandidate[]
+  candidates: readonly MiningCandidate[],
+  addedCandidateIds: ReadonlySet<string> = new Set()
 ): MineState {
   return {
     ...state,
     candidates,
-    addedCandidateIds: new Set(),
+    addedCandidateIds,
     selectedCandidateId: candidates[0]?.id ?? null,
     showDetails: false,
     status: 'idle',
@@ -67,28 +66,28 @@ export function clearMineState(state: MineState): MineState {
   };
 }
 
-// Return a human-readable string related to the candidate state
-// TODO: kind of irrelevant. just remove
-function candidateStatus(state: MineState, candidate: MiningCandidate): string {
-  return state.addedCandidateIds.has(candidate.id) ? 'saved' : 'inbox';
-}
+// // Return a human-readable string related to the candidate state
+// // TODO: kind of irrelevant. just remove
+// function candidateStatus(state: MineState, candidate: MiningCandidate): string {
+//   return state.addedCandidateIds.has(candidate.id) ? 'saved' : 'inbox';
+// }
 
-export function candidateRows(state: MineState): string {
-  if (!state.candidates.length) return 'No candidates yet.';
-  return state.candidates
-    .map((candidate, index) => {
-      const marker = candidate.id === state.selectedCandidateId ? '>' : ' ';
-      return [
-        marker,
-        String(index + 1).padStart(2, ' '),
-        candidateStatus(state, candidate).padEnd(5, ' '),
-        truncate(candidate.expression, 18).padEnd(18, ' '),
-        truncate(candidate.reading ?? '', 18).padEnd(18, ' '),
-        truncate(candidate.meanings.join('; '), 40),
-      ].join(' ');
-    })
-    .join('\n');
-}
+// export function candidateRows(state: MineState): string {
+//   if (!state.candidates.length) return 'No candidates yet.';
+//   return state.candidates
+//     .map((candidate, index) => {
+//       const marker = candidate.id === state.selectedCandidateId ? '>' : ' ';
+//       return [
+//         marker,
+//         String(index + 1).padStart(2, ' '),
+//         candidateStatus(state, candidate).padEnd(5, ' '),
+//         truncate(candidate.expression, 18).padEnd(18, ' '),
+//         truncate(candidate.reading ?? '', 18).padEnd(18, ' '),
+//         truncate(candidate.meanings.join('; '), 40),
+//       ].join(' ');
+//     })
+//     .join('\n');
+// }
 
 export function candidateDetailText(state: MineState): string {
   const candidate = selectedCandidate(state);

@@ -212,6 +212,8 @@ function toDictionarySenses(
   return entry.senses.map((sense) => ({
     id: `${entry.entry.source}:${entry.entry.sequence}:${sense.position}`,
     source: entry.entry.source,
+    entryId: String(entry.entry.sequence),
+    senseId: String(sense.position),
     expression,
     reading,
     meanings: sense.glosses.map((gloss) => gloss.text),

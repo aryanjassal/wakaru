@@ -14,8 +14,16 @@ fills missing examples, and handles words absent from the dictionary.
 5. Press `enter` to add the selected word or `x` to skip it.
 6. Use `export.tsv` with any downstream tool that accepts tab-separated data.
 
-Saved words are stored as JSON. The configured columns can be written to TSV
-from the library screen.
+Saved words are stored in a client-owned SQLite database. Dictionary senses are
+deduplicated by their dictionary, entry and sense identifiers. Generated and
+manual candidates are not deduplicated. Configured columns can be written to
+TSV from the library screen.
+
+The database stores a versioned snapshot of the active export schema. If the
+JSON configuration changes, Wakaru asks at startup whether removed fields were
+renamed or deleted. Proceed applies the field migration, Skip uses the stored
+schema for that session, and Revert writes the stored schema back to the JSON
+configuration. Skipped and partially answered migrations are not persisted.
 
 ## Requirements
 
@@ -94,7 +102,9 @@ archives separately for each operating system and CPU architecture because
 those two dependencies contain platform-specific binaries.
 
 Set `WAKARU_DICTIONARY` or `WAKARU_TOKENISER_DICTIONARY` to override packaged
-assets, and `WAKARU_WORDS_DIR` to override the TUI's saved-word directory.
+assets. TSV exports and the writable `words.sqlite` database default to the
+directory containing `config.json`; `WAKARU_WORD_DATABASE` overrides only the
+database path.
 
 ### API boundaries
 

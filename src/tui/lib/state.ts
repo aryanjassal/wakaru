@@ -1,4 +1,4 @@
-import type { ClientConfig, SavedWord, TuiState, TuiToast } from './types.js';
+import type { ClientConfig, TuiState, TuiToast } from './types.js';
 
 const TOAST_LIMIT = 6;
 
@@ -15,18 +15,16 @@ function withToast(state: TuiState, toast: TuiToast): readonly TuiToast[] {
 
 export function createInitialTuiState(
   config: ClientConfig,
-  wordsDir: string,
+  exportDirectory: string,
   nowMs = Date.now(),
-  viewport: Readonly<{ cols: number; rows: number }> = { cols: 120, rows: 40 },
-  savedWords: readonly SavedWord[] = []
+  viewport: Readonly<{ cols: number; rows: number }> = { cols: 120, rows: 40 }
 ): TuiState {
   return {
     nowMs,
     viewportCols: clampInt(viewport.cols, 40, 300),
     viewportRows: clampInt(viewport.rows, 18, 200),
     config,
-    wordsDir,
-    savedWords,
+    exportDirectory,
     toasts: [],
   };
 }
@@ -53,13 +51,6 @@ export function setViewport(
     ...state,
     viewportCols: clampInt(cols, 40, 300),
     viewportRows: clampInt(rows, 18, 200),
-  };
-}
-
-export function addSavedWord(state: TuiState, word: SavedWord): TuiState {
-  return {
-    ...state,
-    savedWords: [word, ...state.savedWords],
   };
 }
 

@@ -10,7 +10,7 @@ const DEFAULT_CONFIG: ClientConfig = {
   model: {
     name: 'gemma4:12b',
     apiBase: 'http://localhost:11434',
-    maxInputChars: 4096,
+    contextWindow: 32_768,
   },
   export: {
     fields: [
@@ -57,4 +57,11 @@ export function loadConfig(): ClientConfig {
     parsed.value,
     `Config file ${path}`
   );
+}
+
+export function writeConfig(config: ClientConfig): void {
+  const path = configPath();
+  const valid = parseWithSchema(clientConfigSchema, config, 'Config');
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(valid, null, 2)}\n`, 'utf8');
 }

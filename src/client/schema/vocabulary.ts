@@ -7,6 +7,7 @@ const nonEmptyString = z.string().trim().min(1, 'must not be empty');
 
 export const savedWordSchema = z
   .object({
+    id: nonEmptyString,
     candidate: miningCandidateSchema,
     sourceText: z.string(),
     createdAt: nonEmptyString,

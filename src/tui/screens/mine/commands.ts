@@ -5,7 +5,7 @@ import type { SavedWord } from '@/tui/lib/types';
 import type { InputSnapshot, MineState } from './types';
 
 import { useCallback } from 'react';
-import { candidateToSavedWord, saveWord } from '@/client/storage/files';
+import { candidateToSavedWord } from '@/client/storage/words';
 import { useTuiApp, useTuiCommand } from '@/tui/lib/context/app';
 import { errorMessage, readClipboard } from '@/tui/lib/utils';
 import {
@@ -30,6 +30,7 @@ export const MINE_COMMAND_IDS = {
   candidatePrevious: 'candidate.previous',
   candidateNext: 'candidate.next',
   candidateAddSelected: 'candidate.addSelected',
+  candidateAddSelectedDirect: 'candidate.addSelectedDirect',
 } as const;
 
 export type MineStateUpdater = (
@@ -50,7 +51,7 @@ export function useMineCommands({
   wordRef,
   setMineState,
 }: MineCommandDeps): void {
-  const { addSavedWord, addToast, navigate, wakaru, wordsDir } = useTuiApp();
+  const { addToast, config, navigate, wakaru, wordStore } = useTuiApp();
 
   // Synchronise page state to input state
   const syncInputs = useCallback((): InputSnapshot => {
@@ -108,7 +109,15 @@ export function useMineCommands({
         ...(contextText ? { context: contextText } : {}),
       });
       const candidates = result.candidates;
-      setMineState((state) => setCandidates(state, candidates));
+      const saved = candidates.map((candidate) => wordStore.isSaved(candidate));
+      const addedCandidateIds = new Set(
+        candidates
+          .filter((_candidate, index) => saved[index])
+          .map((candidate) => candidate.id)
+      );
+      setMineState((state) =>
+        setCandidates(state, candidates, addedCandidateIds)
+      );
       if (contextText && !wakaru.llmAvailable) {
         addToast(
           'Context ranking is unavailable while Wakaru is offline.',
@@ -124,49 +133,52 @@ export function useMineCommands({
       setMineState((state) => ({ ...state, status: 'error' }));
       addToast(message, 'error');
     }
-  }, [addToast, setMineState, stateRef, syncInputs, wakaru]);
+  }, [addToast, setMineState, stateRef, syncInputs, wakaru, wordStore]);
 
   // Add the selected candidate to inbox
-  const addSelectedCandidate = useCallback(async (): Promise<void> => {
-    const snapshot = syncInputs();
-    const current = stateRef.current;
-    const candidate = selectedCandidate(current);
-    if (
-      !candidate ||
-      current.addedCandidateIds.has(candidate.id) ||
-      current.status === 'saving'
-    ) {
-      return;
-    }
+  const addSelectedCandidate = useCallback(
+    async (useModel: boolean): Promise<void> => {
+      const snapshot = syncInputs();
+      const current = stateRef.current;
+      const candidate = selectedCandidate(current);
+      if (
+        !candidate ||
+        current.addedCandidateIds.has(candidate.id) ||
+        current.status === 'saving'
+      ) {
+        return;
+      }
 
-    setMineState((state) => ({ ...state, status: 'saving' }));
+      setMineState((state) => ({ ...state, status: 'saving' }));
 
-    try {
-      const sourceText =
-        snapshot.contextText.trim() || snapshot.wordText.trim();
-      const prepared = await wakaru.prepareVocabulary(candidate, sourceText);
-      const word: SavedWord = candidateToSavedWord(prepared, sourceText);
-      await saveWord(wordsDir, word);
-      addSavedWord(word);
-      setMineState((state) => ({
-        ...markCandidate(state, candidate.id),
-        status: 'idle',
-      }));
-      addToast(`Saved ${candidate.expression}.`, 'success');
-    } catch (error) {
-      const message = errorMessage(error);
-      setMineState((state) => ({ ...state, status: 'error' }));
-      addToast(message, 'error');
-    }
-  }, [
-    addSavedWord,
-    addToast,
-    setMineState,
-    stateRef,
-    syncInputs,
-    wakaru,
-    wordsDir,
-  ]);
+      try {
+        const sourceText =
+          snapshot.contextText.trim() || snapshot.wordText.trim();
+        const prepared = useModel
+          ? await wakaru.prepareVocabulary(candidate, sourceText)
+          : candidate;
+        const word: SavedWord = candidateToSavedWord(
+          prepared,
+          sourceText,
+          config
+        );
+        wordStore.save(word);
+        setMineState((state) => ({
+          ...markCandidate(state, candidate.id),
+          status: 'idle',
+        }));
+        addToast(
+          `Saved ${candidate.expression}${useModel ? '' : ' without LLM processing'}.`,
+          'success'
+        );
+      } catch (error) {
+        const message = errorMessage(error);
+        setMineState((state) => ({ ...state, status: 'error' }));
+        addToast(message, 'error');
+      }
+    },
+    [addToast, config, setMineState, stateRef, syncInputs, wakaru, wordStore]
+  );
 
   // Clear the word input along with any related results
   const clearWord = useCallback((): void => {
@@ -331,7 +343,15 @@ export function useMineCommands({
     title: 'Add selected candidate',
     keybindings: [{ key: 'return' }],
     availability: selectedCandidateRequired,
-    run: addSelectedCandidate,
+    run: () => addSelectedCandidate(true),
+  });
+
+  useTuiCommand({
+    id: MINE_COMMAND_IDS.candidateAddSelectedDirect,
+    title: 'Add selected candidate without LLM processing',
+    keybindings: [{ key: 'return', shift: true }],
+    availability: selectedCandidateRequired,
+    run: () => addSelectedCandidate(false),
   });
 
   useTuiCommand({

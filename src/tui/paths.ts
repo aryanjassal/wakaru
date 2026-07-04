@@ -1,11 +1,17 @@
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { configDir } from '@/client/config.js';
 import { resolveUserPath } from '@/client/utils.js';
 import { WakaruAssetNotFoundError } from '@/client/errors.js';
 
-export function tuiWordsDir(): string {
+export function exportDirectory(): string {
+  return configDir();
+}
+
+export function wordDatabasePath(): string {
   return resolveUserPath(
-    process.env.WAKARU_WORDS_DIR ?? '~/.config/wakaru/words'
+    process.env.WAKARU_WORD_DATABASE ?? join(configDir(), 'words.sqlite')
   );
 }
 

@@ -33,3 +33,15 @@ export class WakaruAssetNotFoundError extends WakaruClientError {
 export class WakaruFormattingSyntaxError extends WakaruClientError {
   public override readonly name = 'WakaruFormattingSyntaxError';
 }
+
+export class WakaruDuplicateDictionarySenseError extends WakaruClientError {
+  public override readonly name = 'WakaruDuplicateDictionarySenseError';
+
+  public constructor(public readonly existingWordId: string) {
+    super('This dictionary sense is already saved.');
+  }
+}
+
+export class WakaruExportSchemaError extends WakaruClientError {
+  public override readonly name = 'WakaruExportSchemaError';
+}

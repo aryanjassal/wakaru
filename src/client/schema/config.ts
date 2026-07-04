@@ -35,20 +35,39 @@ export const modelConfigSchema = z
     name: nonEmptyString,
     apiBase: nonEmptyString.optional(),
     apiKey: z.string().optional().nullable(),
-    maxInputChars: z.number().int().positive(),
+    contextWindow: z.number().int().positive().optional(),
   })
   .strict();
 
 export type ModelConfig = z.infer<typeof modelConfigSchema>;
 
+export const exportConfigSchema = z
+  .object({
+    fields: exportFieldSchema.array().min(1),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const seen = new Set<string>();
+    value.fields.forEach((field, index) => {
+      if (!seen.has(field.key)) {
+        seen.add(field.key);
+        return;
+      }
+      context.addIssue({
+        code: 'custom',
+        path: ['fields', index, 'key'],
+        message: 'field keys must be unique',
+        input: field.key,
+      });
+    });
+  });
+
+export type ExportConfig = z.infer<typeof exportConfigSchema>;
+
 export const clientConfigSchema = z
   .object({
     model: modelConfigSchema,
-    export: z
-      .object({
-        fields: exportFieldSchema.array().min(1),
-      })
-      .strict(),
+    export: exportConfigSchema,
   })
   .strict();
 

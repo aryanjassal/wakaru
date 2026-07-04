@@ -16,7 +16,7 @@ export function getTestConfig(
     model: {
       name: 'qwen2.5:7b',
       apiBase: 'http://localhost:11434',
-      maxInputChars: 4096,
+      contextWindow: 32_768,
       ...overrides.model,
     },
     export: {

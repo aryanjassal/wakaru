@@ -16,6 +16,8 @@ export interface JapaneseTokeniser {
 export type DictionarySense = Readonly<{
   id: string;
   source: string;
+  entryId: string;
+  senseId: string;
   expression: string;
   reading: string;
   meanings: readonly string[];
@@ -81,7 +83,14 @@ function dictionaryCandidate(sense: DictionarySense): AssistantCandidate {
       ...(sense.information.length
         ? { nuance: sense.information.join('; ') }
         : {}),
-      provenance: { definition: sense.source },
+      provenance: {
+        definition: {
+          kind: 'dictionary',
+          dictionary: sense.source,
+          entryId: sense.entryId,
+          senseId: sense.senseId,
+        },
+      },
     },
     extension: { tags: [sense.source], exportFields: {} },
   };
@@ -133,7 +142,7 @@ export class DefaultVocabularyService<
             ...candidate.details,
             provenance: {
               ...candidate.details?.provenance,
-              definition: 'llm',
+              definition: { kind: 'llm' },
             },
           },
         })),
@@ -172,11 +181,6 @@ export class DefaultVocabularyService<
     context?: string
   ): Promise<AssistantCandidate> {
     if (candidate.details?.example?.japanese.trim()) return candidate;
-    if (this.model.availability === 'unavailable') return candidate;
-    try {
-      return await this.model.addExample(candidate, context);
-    } catch {
-      return candidate;
-    }
+    return this.model.addExample(candidate, context);
   }
 }

@@ -2,7 +2,7 @@ import { describe, it, expect } from '@jest/globals';
 import { OpenAIModel } from '@/client/model/openai.js';
 import { AssistantService } from '@/core/services/assistant.js';
 import { WakaruLLMUnavailableError } from '@/core/errors.js';
-import { getTestConfig } from './config.js';
+import { createTestCandidate, getTestConfig } from './config.js';
 
 describe('OpenAI-compatible model', () => {
   const config = getTestConfig({
@@ -27,7 +27,7 @@ describe('OpenAI-compatible model', () => {
       }),
       {
         fields: config.export.fields,
-        maxInputChars: config.model.maxInputChars,
+        contextWindow: config.model.contextWindow,
       }
     );
   }
@@ -69,7 +69,7 @@ describe('OpenAI-compatible model', () => {
           return Promise.resolve('{}');
         },
       },
-      { fields: [], maxInputChars: 1_000 }
+      { fields: [], contextWindow: 1_000 }
     );
 
     await expect(service.checkHealth()).resolves.toBe(false);
@@ -134,7 +134,7 @@ describe('OpenAI-compatible model', () => {
       expect(candidates[0]?.expression).toBe('稼ぐ');
       expect(candidates[0]?.extension?.tags).toEqual(['verb']);
       expect(candidates[0]?.extension?.exportFields.Front).toBe('稼ぐ');
-      expect(candidates[0]?.extension?.exportFields.Notes).toBeUndefined();
+      expect(candidates[0]?.extension?.exportFields.Notes).toBe('');
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -227,6 +227,63 @@ describe('OpenAI-compatible model', () => {
     }
   });
 
+  it('uses few-shot prompting and validates candidate enrichment', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (_url, init) => {
+      const body = JSON.parse(requestBody(init)) as Record<string, unknown>;
+      const prompt = requestPrompt(body);
+      expect(prompt).toContain('Examples:');
+      expect(prompt).toContain('Input: expression=配慮');
+      expect(prompt).toContain('Now complete this candidate:');
+      return Promise.resolve(
+        modelResponse({
+          contextMeaning: 'consideration for another person',
+          japanese: '相手への配慮が必要だ。',
+          english: 'Consideration for the other person is necessary.',
+          exportFields: { Front: '配慮' },
+        })
+      );
+    };
+
+    try {
+      const candidate = createTestCandidate({
+        details: { partOfSpeech: ['noun'] },
+      });
+      const enriched = await assistant().addExample(candidate, '文脈');
+      expect(enriched.details?.contextMeaning).toBe(
+        'consideration for another person'
+      );
+      expect(enriched.details?.example?.japanese).toBe(
+        '相手への配慮が必要だ。'
+      );
+      expect(enriched.extension?.exportFields.Front).toBe('配慮');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('rejects empty enrichment fields', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () =>
+      Promise.resolve(
+        modelResponse({
+          contextMeaning: '',
+          japanese: '',
+          english: '',
+          exportFields: {},
+        })
+      );
+
+    try {
+      const candidate = createTestCandidate({ details: {} });
+      await expect(assistant().addExample(candidate)).rejects.toThrow(
+        /valid example/
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('chatWithModel returns markdown and an optional candidate', async () => {
     const originalFetch = globalThis.fetch;
     let requestCount = 0;
@@ -314,6 +371,38 @@ describe('OpenAI-compatible model', () => {
       expect(response.markdown).toMatch(/godan verb/);
       expect(response.candidate?.meanings).toEqual(['to earn']);
       expect(requestCount).toBe(2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('rolls chat history by complete messages within the context window', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (_url, init) => {
+      const body = JSON.parse(requestBody(init)) as Record<string, unknown>;
+      const prompt = requestPrompt(body);
+      expect(prompt).toContain('USER: latest question');
+      expect(prompt).not.toContain('old question');
+      expect(prompt).not.toContain('old answer');
+      return Promise.resolve(
+        modelResponse({ markdown: 'Latest answer.', candidate: null })
+      );
+    };
+
+    try {
+      const service = new AssistantService(
+        new OpenAIModel({ model: 'test', baseUrl: 'http://ollama.test' }),
+        { fields: [], contextWindow: 100 }
+      );
+      const response = await service.chat(
+        [],
+        [
+          { role: 'user', content: 'old question' },
+          { role: 'assistant', content: 'old answer' },
+          { role: 'user', content: 'latest question' },
+        ]
+      );
+      expect(response.markdown).toBe('Latest answer.');
     } finally {
       globalThis.fetch = originalFetch;
     }

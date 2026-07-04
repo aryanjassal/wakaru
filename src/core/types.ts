@@ -3,8 +3,18 @@ export type VocabularyExample = Readonly<{
   english?: string | undefined;
 }>;
 
+export type CandidateDefinitionSource =
+  | Readonly<{
+      kind: 'dictionary';
+      dictionary: string;
+      entryId: string;
+      senseId: string;
+    }>
+  | Readonly<{ kind: 'llm' }>
+  | Readonly<{ kind: 'manual' }>;
+
 export type CandidateProvenance = Readonly<{
-  definition?: string | undefined;
+  definition?: CandidateDefinitionSource | undefined;
   example?: string | undefined;
 }>;
 

@@ -6,7 +6,7 @@ import type { ChatCommandFragment } from './commands.js';
 
 import { SyntaxStyle, TextAttributes } from '@opentui/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { candidateToSavedWord, saveWord } from '@/client/storage/files.js';
+import { candidateToSavedWord } from '@/client/storage/words.js';
 import {
   Button,
   Loader,
@@ -169,6 +169,7 @@ export function ChatScreen({
     useState<ChatCommandFragment | null>(null);
   const [commandIndex, setCommandIndex] = useState(0);
   const [showAddWord, setShowAddWord] = useState(false);
+  const [savedWords, setSavedWords] = useState<readonly SavedWord[]>([]);
   const syntaxStyle = useMemo(
     () =>
       SyntaxStyle.fromStyles({
@@ -191,6 +192,14 @@ export function ChatScreen({
 
   useEffect(() => () => syntaxStyle.destroy(), [syntaxStyle]);
   useEffect(() => composerRef.current?.focus(), []);
+  useEffect(() => {
+    if (!showAddWord) return;
+    try {
+      setSavedWords(app.wordStore.list());
+    } catch (error) {
+      app.addToast(errorMessage(error), 'error');
+    }
+  }, [app.addToast, app.wordStore, showAddWord]);
   useEffect(() => {
     if (!app.wakaru.llmAvailable) {
       app.addToast('Chat is unavailable while Wakaru is offline.', 'warning');
@@ -353,9 +362,8 @@ export function ChatScreen({
           candidate,
           sourceText
         );
-        const word = candidateToSavedWord(prepared, sourceText);
-        await saveWord(app.wordsDir, word);
-        app.addSavedWord(word);
+        const word = candidateToSavedWord(prepared, sourceText, app.config);
+        app.wordStore.save(word);
         app.addToast(`Saved ${word.candidate.expression}.`, 'success');
       } catch (error) {
         app.addToast(errorMessage(error), 'error');
@@ -505,7 +513,7 @@ export function ChatScreen({
       </box>
       {showAddWord ? (
         <AddWordPopup
-          words={app.savedWords}
+          words={savedWords}
           selectedIds={
             new Set(
               state.attachments

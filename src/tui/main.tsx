@@ -1,12 +1,17 @@
 import { createCliRenderer } from '@opentui/core';
 import { createRoot } from '@opentui/react';
 import { createWakaru } from '@/client/create';
-import { loadConfig } from '@/client/config';
-import { loadSavedWords } from '@/client/storage/files';
+import { loadConfig, writeConfig } from '@/client/config';
+import { SqliteWordStore } from '@/client/storage/sqlite';
 import { TuiApp } from './app';
-import { addToast, createInitialTuiState, createToast } from './lib/state';
+import { createInitialTuiState } from './lib/state';
 import { colorscheme } from './lib/theme';
-import { dictionaryPath, tokeniserDictionaryPath, tuiWordsDir } from './paths';
+import {
+  dictionaryPath,
+  tokeniserDictionaryPath,
+  exportDirectory,
+  wordDatabasePath,
+} from './paths';
 
 const UI_FPS_CAP = 60;
 
@@ -20,35 +25,33 @@ function clampViewportAxis(
   return raw <= 0 ? safeFallback : raw;
 }
 
-const config = loadConfig();
-const wordsDir = tuiWordsDir();
-const loadedWords = await loadSavedWords(wordsDir);
-const wakaru = createWakaru({
-  config,
-  dictionaryPath: dictionaryPath(),
-  tokeniserDictionaryPath: tokeniserDictionaryPath(),
-});
+const configuredConfig = loadConfig();
+const exportDir = exportDirectory();
+const wordStore = new SqliteWordStore(wordDatabasePath());
+const schemaState = wordStore.checkExportSchema(configuredConfig.export);
+const effectiveConfig = schemaState
+  ? { ...configuredConfig, export: schemaState.stored }
+  : configuredConfig;
+const dictionary = dictionaryPath();
+const tokeniserDictionary = tokeniserDictionaryPath();
+const createConfiguredWakaru = (config: typeof configuredConfig) =>
+  createWakaru({
+    config,
+    dictionaryPath: dictionary,
+    tokeniserDictionaryPath: tokeniserDictionary,
+  });
+const wakaru = createConfiguredWakaru(effectiveConfig);
 await wakaru.checkHealth();
 
-let initialState = createInitialTuiState(
-  config,
-  wordsDir,
+const initialState = createInitialTuiState(
+  effectiveConfig,
+  exportDir,
   Date.now(),
   {
     cols: clampViewportAxis(process.stdout.columns, 120),
     rows: clampViewportAxis(process.stdout.rows, 40),
-  },
-  loadedWords.words
+  }
 );
-if (loadedWords.failedCount) {
-  initialState = addToast(
-    initialState,
-    createToast(
-      `${loadedWords.failedCount} saved word${loadedWords.failedCount === 1 ? '' : 's'} failed to load.`,
-      'warning'
-    )
-  );
-}
 
 let stopping = false;
 let stopCode = 0;
@@ -72,6 +75,7 @@ function stopApp(code = 0): Promise<void> {
   stopping = true;
   stopCode = code;
   renderer.destroy();
+  wordStore.close();
   stopResolve?.();
   stopResolve = null;
   return Promise.resolve();
@@ -81,7 +85,26 @@ process.once('SIGINT', () => void stopApp(0));
 process.once('SIGTERM', () => void stopApp(0));
 
 createRoot(renderer).render(
-  <TuiApp initialState={initialState} wakaru={wakaru} stop={stopApp} />
+  <TuiApp
+    initialState={initialState}
+    wakaru={wakaru}
+    wordStore={wordStore}
+    schemaState={schemaState ?? undefined}
+    resolveSchema={async (action, migration) => {
+      let config = effectiveConfig;
+      if (action === 'proceed') {
+        wordStore.applyExportSchema(configuredConfig.export, migration);
+        config = configuredConfig;
+      } else if (action === 'revert' && schemaState) {
+        config = { ...configuredConfig, export: schemaState.stored };
+        writeConfig(config);
+      }
+      const nextWakaru = createConfiguredWakaru(config);
+      await nextWakaru.checkHealth();
+      return { config, wakaru: nextWakaru };
+    }}
+    stop={stopApp}
+  />
 );
 
 await stopPromise;

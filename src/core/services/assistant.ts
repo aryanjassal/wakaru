@@ -32,7 +32,7 @@ export type AssistantField = Readonly<{
 
 export type AssistantOptions = Readonly<{
   fields: readonly AssistantField[];
-  maxInputChars: number;
+  contextWindow?: number | undefined;
 }>;
 
 type AssistantContext = Readonly<{
@@ -215,7 +215,7 @@ Task:
 Analyse the pasted Japanese word or phrase. Return the likely meanings for this exact word. If the meaning is ambiguous and a context sentence is provided, use that context to choose the correct sense and card content. If no context is provided and the word is ambiguous, include the uncertainty in the meaning or nuance fields.
 
 ${FORMATTING_CONTRACT}
-The markdown answer may otherwise use ordinary Markdown. Use {expression|reading} as its only reading syntax. NEVER output HTML.
+The markdown answer may otherwise use ordinary Markdown.
 
 Word or phrase:
 ${wordText}
@@ -316,22 +316,73 @@ async function addExampleWithModel(
   candidate: AssistantCandidate,
   context?: string
 ): Promise<AssistantCandidate> {
-  const prompt = `Create one short, natural Japanese example for this exact dictionary sense.
+  const generatedFields = assistant.options.fields.filter(
+    (field): field is AssistantField & { modelPrompt: string } =>
+      typeof field.modelPrompt === 'string'
+  );
+  const fieldInstructions = generatedFields.length
+    ? JSON.stringify(
+        Object.fromEntries(
+          generatedFields.map((field) => [field.key, field.modelPrompt])
+        ),
+        null,
+        2
+      )
+    : '{}';
+  const prompt = `Complete a vocabulary candidate for this exact dictionary sense.
 The expression must appear in the Japanese sentence. Do not use a different sense.
-Return only JSON: {"japanese":"...","english":"..."}.
+Return only JSON with contextMeaning, japanese, english, and exportFields.
+Populate every configured export field using its instruction and exact key.
+
+Examples:
+Input: expression=配慮, meaning=consideration, context=相手への配慮が必要だ。
+Output: {"contextMeaning":"consideration for the other person","japanese":"相手への配慮を忘れないでください。","english":"Please do not forget to show consideration for the other person.","exportFields":{"sentence":"相手への配慮を忘れないでください。"}}
+
+Input: expression=検討, meaning=consideration; examination, context=導入を検討している。
+Output: {"contextMeaning":"considering whether to introduce something","japanese":"新しい制度の導入を検討しています。","english":"We are considering introducing the new system.","exportFields":{"sentence":"新しい制度の導入を検討しています。"}}
+
+Now complete this candidate:
 
 Expression: ${candidate.expression}
 Reading: ${candidate.reading ?? 'unknown'}
 Meanings: ${candidate.meanings.join('; ')}
 Part of speech: ${candidate.details?.partOfSpeech?.join(', ') ?? 'unknown'}
-${context?.trim() ? `Source context: ${context.trim()}` : ''}`;
+${context?.trim() ? `Source context: ${context.trim()}` : ''}
+Configured export fields:
+${fieldInstructions}`;
   const text = await retryModelOperation(() =>
     generateText(assistant, prompt, 0.2)
   );
   const parsed = parseJsonText(text, 'Model example response');
   if (!parsed.success) throw parsed.error;
-  const value = parsed.value as { japanese?: unknown; english?: unknown };
-  if (typeof value.japanese !== 'string' || typeof value.english !== 'string') {
+  const value = parsed.value as {
+    contextMeaning?: unknown;
+    japanese?: unknown;
+    english?: unknown;
+    exportFields?: unknown;
+  };
+  const exportFields =
+    value.exportFields &&
+    typeof value.exportFields === 'object' &&
+    !Array.isArray(value.exportFields)
+      ? (value.exportFields as Record<string, unknown>)
+      : null;
+  const missingRequiredField = generatedFields.some(
+    (field) =>
+      !field.optional &&
+      (typeof exportFields?.[field.key] !== 'string' ||
+        !(exportFields[field.key] as string).trim())
+  );
+  if (
+    typeof value.contextMeaning !== 'string' ||
+    !value.contextMeaning.trim() ||
+    typeof value.japanese !== 'string' ||
+    !value.japanese.trim() ||
+    typeof value.english !== 'string' ||
+    !value.english.trim() ||
+    !exportFields ||
+    missingRequiredField
+  ) {
     throw new WakaruModelResponseError(
       'The model did not return a valid example.'
     );
@@ -340,6 +391,7 @@ ${context?.trim() ? `Source context: ${context.trim()}` : ''}`;
     ...candidate,
     details: {
       ...candidate.details,
+      contextMeaning: value.contextMeaning.trim(),
       example: {
         japanese: value.japanese.trim(),
         english: value.english.trim(),
@@ -349,10 +401,24 @@ ${context?.trim() ? `Source context: ${context.trim()}` : ''}`;
         example: 'llm',
       },
     },
+    extension: {
+      tags: candidate.extension?.tags ?? [],
+      exportFields: {
+        ...(candidate.extension?.exportFields ?? {}),
+        ...Object.fromEntries(
+          generatedFields.flatMap((field) => {
+            const fieldValue = exportFields[field.key];
+            return typeof fieldValue === 'string' && fieldValue.trim()
+              ? [[field.key, fieldValue.trim()]]
+              : [];
+          })
+        ),
+      },
+    },
   };
 }
 
-function chatPrompt(
+function renderChatPrompt(
   context: AssistantContext,
   contexts: readonly AssistantCandidate[],
   messages: readonly ChatMessage[]
@@ -366,8 +432,7 @@ function chatPrompt(
   }));
   const transcript = messages
     .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
-    .join('\n\n')
-    .slice(-context.options.maxInputChars);
+    .join('\n\n');
   const fields = context.options.fields
     .map((field) =>
       'modelPrompt' in field
@@ -397,6 +462,63 @@ Return only valid JSON with this shape:
 }
 
 Set candidate to null for explanation-only answers. Otherwise use the same nested candidate shape as the attached vocabulary: expression, optional reading, meanings, optional details, and optional extension. Put contextMeaning, partOfSpeech, nuance, and example inside details. Put tags and exportFields inside extension. Populate required configured export fields exactly. Optional fields may be omitted when they are not useful. Before returning a candidate, verify that its reading covers the complete expression character by character; never return a partial reading (for example, 開発 is かいはつ, not かい). Never omit markdown.`;
+}
+
+function estimateTokens(text: string): number {
+  return Math.ceil(new TextEncoder().encode(text).length / 3);
+}
+
+function messageChunk(
+  messages: readonly ChatMessage[],
+  end: number
+): Readonly<{ messages: readonly ChatMessage[]; next: number }> {
+  const current = messages[end];
+  const previous = messages[end - 1];
+  if (current?.role === 'assistant' && previous?.role === 'user') {
+    return { messages: [previous, current], next: end - 2 };
+  }
+  return { messages: current ? [current] : [], next: end - 1 };
+}
+
+function rollingChatMessages(
+  context: AssistantContext,
+  contexts: readonly AssistantCandidate[],
+  messages: readonly ChatMessage[]
+): readonly ChatMessage[] {
+  const contextWindow = context.options.contextWindow;
+  if (!contextWindow || !messages.length) return messages;
+
+  const inputBudget = Math.floor(contextWindow * 0.7);
+  const fixedTokens = estimateTokens(renderChatPrompt(context, contexts, []));
+  let remaining = Math.max(0, inputBudget - fixedTokens);
+  let index = messages.length - 1;
+  const selected: ChatMessage[] = [];
+
+  while (index >= 0) {
+    const chunk = messageChunk(messages, index);
+    const chunkTokens = estimateTokens(
+      chunk.messages
+        .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
+        .join('\n\n')
+    );
+    if (selected.length && chunkTokens > remaining) break;
+    selected.unshift(...chunk.messages);
+    remaining = Math.max(0, remaining - chunkTokens);
+    index = chunk.next;
+  }
+  return selected;
+}
+
+function chatPrompt(
+  context: AssistantContext,
+  contexts: readonly AssistantCandidate[],
+  messages: readonly ChatMessage[]
+): string {
+  return renderChatPrompt(
+    context,
+    contexts,
+    rollingChatMessages(context, contexts, messages)
+  );
 }
 
 async function verifyChatCandidate(

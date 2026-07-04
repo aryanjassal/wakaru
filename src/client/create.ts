@@ -37,7 +37,7 @@ export function createWakaru(options: CreateWakaruOptions): Wakaru {
     });
   const assistant = new AssistantService(model, {
     fields: options.config.export.fields,
-    maxInputChars: options.config.model.maxInputChars,
+    contextWindow: options.config.model.contextWindow,
   });
   const vocabulary = new DefaultVocabularyService(
     tokeniser,

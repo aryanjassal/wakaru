@@ -1,5 +1,12 @@
 import type { CliRenderer, InputRenderable, KeyEvent } from '@opentui/core';
 import type { Wakaru } from '@/core/wakaru.js';
+import type { WordStore } from '@/client/storage/words.js';
+import type {
+  ExportSchemaMigration,
+  ExportSchemaState,
+} from '@/client/storage/schema-diff.js';
+import type { ClientConfig } from '@/client/schema/config.js';
+import type { SchemaResolutionAction } from './components/widgets/schema-migration.js';
 import type { TuiRoute, TuiRouteTarget, TuiState } from './lib/types';
 import type { TuiCommand, TuiCommandId } from './commands';
 import type { TuiToastLevel } from './lib/context/app';
@@ -18,7 +25,6 @@ import { SettingsScreen } from './screens/settings';
 import { ChatScreen } from './screens/chat/screen';
 import { WordDetailScreen } from './screens/word-detail';
 import {
-  addSavedWord as addSavedWordToState,
   addToast as addToastToState,
   createToast,
   pruneToasts,
@@ -27,6 +33,7 @@ import {
 import { colorscheme, NAME, TAGLINE } from './lib/theme';
 import { Button } from './components/primitives/button';
 import { CommandPalette } from './components/index';
+import { SchemaMigrationPopup } from './components/widgets/schema-migration';
 
 const TICK_MS = 1000;
 const TOAST_PRUNE_MS = 3000;
@@ -45,6 +52,14 @@ const SHELL_COMMAND_IDS = {
 type TuiAppProps = Readonly<{
   initialState: TuiState;
   wakaru: Wakaru;
+  wordStore: WordStore;
+  schemaState?: ExportSchemaState | undefined;
+  resolveSchema?:
+    | ((
+        action: SchemaResolutionAction,
+        migration: ExportSchemaMigration
+      ) => Promise<Readonly<{ config: ClientConfig; wakaru: Wakaru }>>)
+    | undefined;
   stop: (code?: number) => Promise<void>;
 }>;
 
@@ -176,7 +191,14 @@ function MainContent() {
   );
 }
 
-export function TuiApp({ initialState, wakaru, stop }: TuiAppProps) {
+export function TuiApp({
+  initialState,
+  wakaru: initialWakaru,
+  wordStore,
+  schemaState: initialSchemaState,
+  resolveSchema,
+  stop,
+}: TuiAppProps) {
   const renderer = useRenderer();
   const [state, setState] = useState(initialState);
   const [route, setRoute] = useState<TuiRoute>({ id: 'mine' });
@@ -184,6 +206,8 @@ export function TuiApp({ initialState, wakaru, stop }: TuiAppProps) {
   const [commandQuery, setCommandQuery] = useState('');
   const [commandIndex, setCommandIndex] = useState(0);
   const [commands, setCommands] = useState<readonly TuiCommand[]>([]);
+  const [wakaru, setWakaru] = useState(initialWakaru);
+  const [schemaState, setSchemaState] = useState(initialSchemaState);
   const stateRef = useRef(state);
   const routeRef = useRef(route);
   const routeStateRef = useRef(new Map<string, unknown>());
@@ -201,13 +225,6 @@ export function TuiApp({ initialState, wakaru, stop }: TuiAppProps) {
       setTuiState((current) =>
         addToastToState(current, createToast(message, level))
       );
-    },
-    [setTuiState]
-  );
-
-  const addSavedWord = useCallback(
-    (word: TuiState['savedWords'][number]): void => {
-      setTuiState((current) => addSavedWordToState(current, word));
     },
     [setTuiState]
   );
@@ -293,12 +310,11 @@ export function TuiApp({ initialState, wakaru, stop }: TuiAppProps) {
   const appContext = useMemo(
     () => ({
       config: state.config,
-      wordsDir: state.wordsDir,
+      exportDirectory: state.exportDirectory,
       wakaru,
-      savedWords: state.savedWords,
+      wordStore,
       route,
       routeId: route.id,
-      addSavedWord,
       addToast,
       navigate,
       navigateOffset,
@@ -310,7 +326,6 @@ export function TuiApp({ initialState, wakaru, stop }: TuiAppProps) {
       stop,
     }),
     [
-      addSavedWord,
       addToast,
       navigate,
       navigateOffset,
@@ -319,11 +334,11 @@ export function TuiApp({ initialState, wakaru, stop }: TuiAppProps) {
       route,
       runCommand,
       state.config,
-      state.wordsDir,
-      state.savedWords,
+      state.exportDirectory,
       stop,
       setRouteState,
       wakaru,
+      wordStore,
       toggleCommandPalette,
     ]
   );
@@ -372,6 +387,7 @@ export function TuiApp({ initialState, wakaru, stop }: TuiAppProps) {
 
   useKeyboard((key) => {
     if (key.eventType === 'release') return;
+    if (schemaState) return;
 
     if (showCommandPalette) {
       const paletteToggle = commandRegistry.commandForKey(key);
@@ -426,7 +442,13 @@ export function TuiApp({ initialState, wakaru, stop }: TuiAppProps) {
 
   return (
     <FocusProvider
-      activeScope={showCommandPalette ? 'command-palette' : 'route'}
+      activeScope={
+        schemaState
+          ? 'schema-migration'
+          : showCommandPalette
+            ? 'command-palette'
+            : 'route'
+      }
     >
       <TuiAppProvider value={appContext}>
         <ShellCommands />
@@ -532,6 +554,27 @@ export function TuiApp({ initialState, wakaru, stop }: TuiAppProps) {
             />
           ) : null}
           <MainContent />
+          {schemaState && resolveSchema ? (
+            <SchemaMigrationPopup
+              state={schemaState}
+              resolve={async (action, migration) => {
+                try {
+                  const resolved = await resolveSchema(action, migration);
+                  setWakaru(resolved.wakaru);
+                  setTuiState((current) => ({
+                    ...current,
+                    config: resolved.config,
+                  }));
+                  setSchemaState(undefined);
+                } catch (error) {
+                  addToast(
+                    error instanceof Error ? error.message : String(error),
+                    'error'
+                  );
+                }
+              }}
+            />
+          ) : null}
         </box>
       </TuiAppProvider>
     </FocusProvider>

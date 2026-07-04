@@ -10,6 +10,7 @@ import { preprocessChatMarkdown } from '@/tui/screens/chat/render.js';
 import { filterSavedWords, kanaToRomaji } from '@/tui/screens/chat/utils.js';
 
 const WORD: SavedWord = {
+  id: 'saved-word-1',
   candidate: {
     id: 'word-1',
     expression: '警察官',

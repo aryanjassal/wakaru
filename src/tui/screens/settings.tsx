@@ -2,7 +2,7 @@ import { useTuiApp } from '../lib/context/app.js';
 import { colorscheme } from '../lib/theme.js';
 
 export function SettingsScreen() {
-  const { config, wordsDir } = useTuiApp();
+  const { config, exportDirectory } = useTuiApp();
 
   return (
     <box
@@ -19,7 +19,7 @@ export function SettingsScreen() {
     >
       <text>Model: {config.model.name}</text>
       <text>API Base: {config.model.apiBase ?? 'provider default'}</text>
-      <text>Words directory: {wordsDir}</text>
+      <text>Export directory: {exportDirectory}</text>
       <text></text>
       <text>Edit ~/.config/wakaru/config.json, then restart Wakaru.</text>
     </box>

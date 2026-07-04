@@ -1,16 +1,13 @@
 import type { InputRenderable, TextareaRenderable } from '@opentui/core';
-import type { MineState } from './types';
+import type { MineState } from './types.js';
 
 import { useCallback, useEffect, useRef } from 'react';
-import { MINE_COMMAND_IDS, useMineCommands } from './commands';
-import {
-  candidateDetailText,
-  candidateRows,
-  createInitialMineState,
-} from './utils';
-import { colorscheme } from '@/tui/lib/theme';
-import { Button, Input, Loader, Separator, Textarea } from '@/tui/components';
-import { usePersistentRouteState } from '@/tui/lib/context/app';
+import { Button, Input, Loader, Separator, Textarea } from '../../components';
+import { MINE_COMMAND_IDS, useMineCommands } from './commands.js';
+import { colorscheme } from '../../lib/theme.js';
+import { usePersistentRouteState } from '../../lib/context/app.js';
+import { candidateDetailText, createInitialMineState } from './utils.js';
+import { Candidate } from '@/tui/components/widgets/candidate.js';
 
 function MineStatus({ status }: Readonly<{ status: MineState['status'] }>) {
   switch (status) {
@@ -137,14 +134,28 @@ export function MineScreen() {
         />
       </box>
       <MineStatus status={state.status} />
-      <text
+      <box rowGap={1}>
+        {state.candidates.length ? (
+          state.candidates.map((candidate, i) => (
+            <Candidate
+              key={i}
+              candidate={candidate}
+              focused={candidate.id === state.selectedCandidateId}
+              addedCandidateIds={state.addedCandidateIds}
+            />
+          ))
+        ) : (
+          <text>No candidates yet.</text>
+        )}
+      </box>
+      {/* <text
         id="candidate-list"
         flexShrink={0}
         width="100%"
         fg={colorscheme.text}
         content={candidateRows(state)}
         wrapMode="word"
-      />
+      /> */}
       <text
         id="candidate-detail"
         width="100%"

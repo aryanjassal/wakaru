@@ -1,4 +1,7 @@
+import type { SavedWord } from '@/client/types.js';
+
 import { tsvExportPath, writeTsvExport } from '@/client/export/tsv.js';
+import { useEffect, useState } from 'react';
 import { Button, Separator } from '../components/index.js';
 import { useTuiApp, useTuiCommand } from '../lib/context/app.js';
 import { colorscheme } from '../lib/theme.js';
@@ -12,7 +15,17 @@ function errorMessage(error: unknown): string {
 }
 
 export function LibraryScreen() {
-  const { addToast, config, navigate, savedWords, wordsDir } = useTuiApp();
+  const { addToast, config, exportDirectory, navigate, wordStore } =
+    useTuiApp();
+  const [savedWords, setSavedWords] = useState<readonly SavedWord[]>([]);
+
+  useEffect(() => {
+    try {
+      setSavedWords(wordStore.list());
+    } catch (error) {
+      addToast(errorMessage(error), 'error');
+    }
+  }, [addToast, wordStore]);
 
   useTuiCommand({
     id: LIBRARY_COMMAND_IDS.exportTsv,
@@ -20,7 +33,7 @@ export function LibraryScreen() {
     keybindings: [{ key: 'e', ctrl: true }],
     run: async () => {
       try {
-        const path = await writeTsvExport(config, wordsDir, savedWords);
+        const path = await writeTsvExport(config, exportDirectory, savedWords);
         addToast(`Wrote ${path}.`, 'success');
       } catch (error) {
         addToast(errorMessage(error), 'error');
@@ -46,7 +59,7 @@ export function LibraryScreen() {
         fg={colorscheme.muted}
       />
       <text
-        content={`TSV export: ${tsvExportPath(wordsDir)}`}
+        content={`TSV export: ${tsvExportPath(exportDirectory)}`}
         fg={colorscheme.muted}
       />
       <Separator />
