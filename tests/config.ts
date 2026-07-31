@@ -1,8 +1,8 @@
-import type { ClientConfig } from '@/client/schema/config.js';
-import type { AssistantCandidate } from '@/core/types.js';
-import { clientConfigSchema } from '@/client/schema/config.js';
-import { miningCandidateSchema } from '@/core/schemas.js';
-import { parseWithSchema } from '@/core/validation/json.js';
+import type { ClientConfig } from '@/wakaru/schema/config.js';
+import type { AssistantCandidate } from '@/wakaru/types.js';
+import { clientConfigSchema } from '@/wakaru/schema/config.js';
+import { miningCandidateSchema } from '@/wakaru/schemas.js';
+import { parseWithSchema } from '@/wakaru/validation/json.js';
 
 type TestConfigOverrides = Readonly<{
   model?: Partial<ClientConfig['model']>;

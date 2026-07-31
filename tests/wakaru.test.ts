@@ -1,50 +1,53 @@
 import { describe, expect, it } from '@jest/globals';
-import { createCustomWakaru } from '@/client/create.js';
-import { WakaruLLMUnavailableError } from '@/core/errors.js';
-import type { VocabularyInput } from '@/core/services/vocabulary.js';
-
-type CustomInput = VocabularyInput & Readonly<{ dictionary: string }>;
+import { Assistant } from '@/wakaru/assistant.js';
+import { Wakaru } from '@/wakaru/wakaru.js';
+import { JapaneseVocabulary } from '@/wakaru/vocabulary.js';
+import { WakaruLLMUnavailableError } from '@/wakaru/errors.js';
 
 describe('Wakaru', () => {
-  it('accepts client-supplied services and custom vocabulary input', async () => {
-    const wakaru = createCustomWakaru<CustomInput>({
-      vocabulary: {
-        analyse: (input) =>
-          Promise.resolve({
-            tokens: [],
-            candidates: [],
-            source: input.dictionary === 'custom' ? 'dictionary' : 'llm',
-          }),
-        prepare: (candidate) => Promise.resolve(candidate),
-      },
-      conversation: {
-        availability: 'available',
+  it('exposes Japanese vocabulary analysis through the app object', async () => {
+    const assistant = new Assistant(
+      {
         checkHealth: () => Promise.resolve(true),
-        chat: () => Promise.resolve({ markdown: 'ok' }),
+        complete: () => Promise.resolve('{}'),
       },
-    });
+      { fields: [] }
+    );
+    const vocabulary = new JapaneseVocabulary(
+      { tokenise: () => Promise.resolve([]) },
+      { lookup: () => [] },
+      {
+        define: () => Promise.resolve([]),
+        rank: () => Promise.resolve([]),
+        addExample: (candidate) => Promise.resolve(candidate),
+      }
+    );
+    const wakaru = new Wakaru(vocabulary, assistant);
 
-    const result = await wakaru.analyseVocabulary({
-      expression: '語',
-      dictionary: 'custom',
-    });
+    const result = await wakaru.analyseVocabulary({ expression: '語' });
 
-    expect(result.source).toBe('dictionary');
+    expect(result.source).toBe('llm');
   });
 
   it('exposes model availability and short-circuits model-only features', async () => {
-    const wakaru = createCustomWakaru({
-      vocabulary: {
-        analyse: () =>
-          Promise.resolve({ tokens: [], candidates: [], source: 'dictionary' }),
-        prepare: (candidate) => Promise.resolve(candidate),
-      },
-      conversation: {
-        availability: 'unavailable',
-        checkHealth: () => Promise.resolve(false),
-        chat: () => Promise.reject(new WakaruLLMUnavailableError()),
-      },
-    });
+    const wakaru = new Wakaru(
+      new JapaneseVocabulary(
+        { tokenise: () => Promise.resolve([]) },
+        { lookup: () => [] },
+        {
+          define: () => Promise.resolve([]),
+          rank: () => Promise.resolve([]),
+          addExample: (candidate) => Promise.resolve(candidate),
+        }
+      ),
+      new Assistant(
+        {
+          checkHealth: () => Promise.resolve(false),
+          complete: () => Promise.resolve('{}'),
+        },
+        { fields: [] }
+      )
+    );
 
     expect(wakaru.llmAvailable).toBe(false);
     await expect(wakaru.checkHealth()).resolves.toBe(false);

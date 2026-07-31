@@ -4,7 +4,7 @@ import {
   formattedTextToHtml,
   parseFormattedText,
   DEFAULT_HTML_FORMATTING,
-} from '@/client/formatting.js';
+} from '@/wakaru/formatting.js';
 
 describe('canonical field formatting', () => {
   it('parses the single supported readable syntax', () => {

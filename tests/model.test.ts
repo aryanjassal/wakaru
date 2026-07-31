@@ -1,11 +1,15 @@
 import { describe, expect, it } from '@jest/globals';
-import { DEFAULT_OPENAI_BASE_URL, OpenAIModel } from '@/client/model/openai.js';
+import {
+  DEFAULT_OPENAI_BASE_URL,
+  checkOpenAICompatibleHealth,
+  completeOpenAICompatible,
+} from '@/wakaru/model.js';
 import {
   WakaruProviderRequestError,
   WakaruProviderResponseError,
-} from '@/client/errors.js';
+} from '@/wakaru/errors.js';
 
-describe('OpenAIModel', () => {
+describe('OpenAI-compatible model endpoints', () => {
   function requestUrl(input: Parameters<typeof fetch>[0]): string {
     if (typeof input === 'string') return input;
     if (input instanceof URL) return input.toString();
@@ -24,10 +28,14 @@ describe('OpenAIModel', () => {
     };
 
     try {
-      const model = new OpenAIModel({ model: 'test-model' });
-      await expect(model.checkHealth()).resolves.toBe(true);
       await expect(
-        model.generate({ prompt: 'test', responseFormat: 'json' })
+        checkOpenAICompatibleHealth({ model: 'test-model' })
+      ).resolves.toBe(true);
+      await expect(
+        completeOpenAICompatible(
+          { model: 'test-model' },
+          { prompt: 'test', responseFormat: 'json' }
+        )
       ).resolves.toBe('{"ok":true}');
       expect(urls).toEqual([
         `${DEFAULT_OPENAI_BASE_URL}/v1/models`,
@@ -38,36 +46,14 @@ describe('OpenAIModel', () => {
     }
   });
 
-  it('supports provider-specific endpoint overrides', async () => {
-    const originalFetch = globalThis.fetch;
-    let requestedUrl = '';
-    globalThis.fetch = (input) => {
-      requestedUrl = requestUrl(input);
-      return Promise.resolve(
-        Response.json({ choices: [{ message: { content: 'ok' } }] })
-      );
-    };
-
-    try {
-      const model = new OpenAIModel({
-        model: 'test-model',
-        baseUrl: 'https://models.example/',
-        paths: { completions: '/chat' },
-      });
-      await model.generate({ prompt: 'test' });
-      expect(requestedUrl).toBe('https://models.example/chat');
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-
   it('reports an unavailable endpoint without throwing', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = () => Promise.reject(new Error('connection refused'));
 
     try {
-      const model = new OpenAIModel({ model: 'test-model' });
-      await expect(model.checkHealth()).resolves.toBe(false);
+      await expect(
+        checkOpenAICompatibleHealth({ model: 'test-model' })
+      ).resolves.toBe(false);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -79,8 +65,10 @@ describe('OpenAIModel', () => {
       Promise.resolve(new Response('unavailable', { status: 503 }));
 
     try {
-      const model = new OpenAIModel({ model: 'test-model' });
-      const operation = model.generate({ prompt: 'test' });
+      const operation = completeOpenAICompatible(
+        { model: 'test-model' },
+        { prompt: 'test' }
+      );
       await expect(operation).rejects.toMatchObject({
         name: 'WakaruProviderRequestError',
         status: 503,
@@ -98,10 +86,9 @@ describe('OpenAIModel', () => {
     globalThis.fetch = () => Promise.resolve(Response.json({ choices: [] }));
 
     try {
-      const model = new OpenAIModel({ model: 'test-model' });
-      await expect(model.generate({ prompt: 'test' })).rejects.toBeInstanceOf(
-        WakaruProviderResponseError
-      );
+      await expect(
+        completeOpenAICompatible({ model: 'test-model' }, { prompt: 'test' })
+      ).rejects.toBeInstanceOf(WakaruProviderResponseError);
     } finally {
       globalThis.fetch = originalFetch;
     }

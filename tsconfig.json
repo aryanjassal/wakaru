@@ -3,12 +3,14 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "resolvePackageJsonImports": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "@opentui/react",
     "rootDir": ".",
     "outDir": "dist",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@renderer/*": ["./src/renderer/*"],
+      "@wakaru/*": ["./src/wakaru/*"]
     },
     "strict": true,
     "esModuleInterop": true,
@@ -22,6 +24,7 @@
     "src/**/*.tsx",
     "tests/**/*.ts",
     "scripts/**/*.ts",
+    "electron.vite.config.ts",
     "drizzle.config.ts"
   ]
 }

@@ -2,12 +2,12 @@ import { describe, expect, it } from '@jest/globals';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { WakaruDuplicateDictionarySenseError } from '@/client/errors.js';
-import { tsvExportPath, writeTsvExport } from '@/client/export/tsv.js';
-import { SqliteWordStore } from '@/client/storage/sqlite.js';
-import { candidateToSavedWord } from '@/client/storage/words.js';
+import { WakaruDuplicateDictionarySenseError } from '@/wakaru/errors.js';
+import { tsvExportPath, writeTsvExport } from '@/wakaru/export/tsv-file.js';
+import { SqliteWordStore } from '@/wakaru/storage/sqlite.js';
+import { candidateToSavedWord } from '@/wakaru/storage/words.js';
 import { createTestCandidate, getTestConfig } from './config.js';
-import type { ExportConfig } from '@/client/schema/config.js';
+import type { ExportConfig } from '@/wakaru/schema/config.js';
 
 describe('SQLite word store', () => {
   it('persists words and dynamic export fields across instances', async () => {

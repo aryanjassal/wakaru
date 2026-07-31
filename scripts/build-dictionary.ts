@@ -19,7 +19,7 @@ import {
   metadata,
   senses,
   type DictionarySource,
-} from '../src/client/dictionary/schema.js';
+} from '../src/wakaru/dictionary/schema.js';
 
 type Form = {
   text: string;

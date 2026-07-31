@@ -1,11 +1,11 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import type { AssistantCandidate } from '@/core/types.js';
+import type { AssistantCandidate } from '@/wakaru/types.js';
 import type {
   DictionaryRepository,
   JapaneseTokeniser,
-  VocabularyModel,
-} from '@/core/services/vocabulary.js';
-import { DefaultVocabularyService } from '@/core/services/vocabulary.js';
+  VocabularyAssistant,
+} from '@/wakaru/vocabulary.js';
+import { JapaneseVocabulary } from '@/wakaru/vocabulary.js';
 import { createTestCandidate } from './config.js';
 
 const tokeniser: JapaneseTokeniser = {
@@ -21,7 +21,9 @@ const tokeniser: JapaneseTokeniser = {
     ]),
 };
 
-function model(overrides: Partial<VocabularyModel> = {}): VocabularyModel {
+function assistant(
+  overrides: Partial<VocabularyAssistant> = {}
+): VocabularyAssistant {
   return {
     rank: () => Promise.resolve([]),
     define: () => Promise.resolve([]),
@@ -30,7 +32,7 @@ function model(overrides: Partial<VocabularyModel> = {}): VocabularyModel {
   };
 }
 
-describe('DefaultVocabularyService', () => {
+describe('JapaneseVocabulary', () => {
   it('uses token lemmas for dictionary lookup', async () => {
     const lookup = jest
       .fn<DictionaryRepository['lookup']>()
@@ -48,13 +50,13 @@ describe('DefaultVocabularyService', () => {
           priority: 3,
         },
       ]);
-    const service = new DefaultVocabularyService(
+    const vocabulary = new JapaneseVocabulary(
       tokeniser,
       { lookup },
-      model()
+      assistant()
     );
 
-    const result = await service.analyse({ expression: '稼いでいる' });
+    const result = await vocabulary.analyse({ expression: '稼いでいる' });
 
     expect(lookup.mock.calls[0]?.[0]).toContain('稼ぐ');
     expect(result.source).toBe('dictionary');
@@ -81,16 +83,16 @@ describe('DefaultVocabularyService', () => {
         priority: 3,
       }));
     const rank = jest
-      .fn<VocabularyModel['rank']>()
+      .fn<VocabularyAssistant['rank']>()
       .mockResolvedValue(['second', 'first']);
-    const define = jest.fn<VocabularyModel['define']>();
-    const service = new DefaultVocabularyService(
+    const define = jest.fn<VocabularyAssistant['define']>();
+    const vocabulary = new JapaneseVocabulary(
       tokeniser,
       { lookup },
-      model({ rank, define })
+      assistant({ rank, define })
     );
 
-    const result = await service.analyse({
+    const result = await vocabulary.analyse({
       expression: '掛ける',
       context: '電話を掛ける。',
     });
@@ -106,15 +108,15 @@ describe('DefaultVocabularyService', () => {
   it('falls back to the model when the dictionary has no result', async () => {
     const fallback: AssistantCandidate = createTestCandidate();
     const define = jest
-      .fn<VocabularyModel['define']>()
+      .fn<VocabularyAssistant['define']>()
       .mockResolvedValue([fallback]);
-    const service = new DefaultVocabularyService(
+    const vocabulary = new JapaneseVocabulary(
       tokeniser,
       { lookup: () => [] },
-      model({ define })
+      assistant({ define })
     );
 
-    const result = await service.analyse({ expression: '未知語' });
+    const result = await vocabulary.analyse({ expression: '未知語' });
 
     expect(result.source).toBe('llm');
     expect(result.candidates[0]?.details?.provenance?.definition).toEqual({
@@ -123,12 +125,12 @@ describe('DefaultVocabularyService', () => {
   });
 
   it('does not invoke contextual ranking while the model is unavailable', async () => {
-    const rank = jest.fn<VocabularyModel['rank']>();
-    const offlineModel = model({ rank });
-    Object.defineProperty(offlineModel, 'availability', {
+    const rank = jest.fn<VocabularyAssistant['rank']>();
+    const offlineAssistant = assistant({ rank });
+    Object.defineProperty(offlineAssistant, 'availability', {
       value: 'unavailable',
     });
-    const service = new DefaultVocabularyService(
+    const vocabulary = new JapaneseVocabulary(
       tokeniser,
       {
         lookup: () => [
@@ -146,10 +148,10 @@ describe('DefaultVocabularyService', () => {
           },
         ],
       },
-      offlineModel
+      offlineAssistant
     );
 
-    const result = await service.analyse({
+    const result = await vocabulary.analyse({
       expression: '掛ける',
       context: '壁に絵を掛ける。',
     });
@@ -161,15 +163,15 @@ describe('DefaultVocabularyService', () => {
 
   it('propagates enrichment failures instead of returning an incomplete candidate', async () => {
     const failure = new Error('invalid model response');
-    const service = new DefaultVocabularyService(
+    const vocabulary = new JapaneseVocabulary(
       tokeniser,
       { lookup: () => [] },
-      model({ addExample: () => Promise.reject(failure) })
+      assistant({ addExample: () => Promise.reject(failure) })
     );
     const candidate = createTestCandidate({
       details: { partOfSpeech: ['noun'] },
     });
 
-    await expect(service.prepare(candidate, '文脈')).rejects.toBe(failure);
+    await expect(vocabulary.prepare(candidate, '文脈')).rejects.toBe(failure);
   });
 });

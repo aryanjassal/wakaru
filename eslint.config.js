@@ -4,7 +4,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**'],
+    ignores: ['dist/**', 'out/**', 'node_modules/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -23,23 +23,6 @@ export default tseslint.config(
       ],
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
-    },
-  },
-  {
-    files: ['src/core/**/*.ts', 'src/core/**/*.tsx'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: ['node:*', '@/client/*', '../client/*'],
-              message:
-                'Core must remain runtime-agnostic; inject this capability through a core port.',
-            },
-          ],
-        },
-      ],
     },
   },
   {

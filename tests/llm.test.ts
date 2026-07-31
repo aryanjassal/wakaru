@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
-import { OpenAIModel } from '@/client/model/openai.js';
-import { AssistantService } from '@/core/services/assistant.js';
-import { WakaruLLMUnavailableError } from '@/core/errors.js';
+import { createOpenAICompatibleEndpoints } from '@/wakaru/model.js';
+import { Assistant } from '@/wakaru/assistant.js';
+import { WakaruLLMUnavailableError } from '@/wakaru/errors.js';
 import { createTestCandidate, getTestConfig } from './config.js';
 
 describe('OpenAI-compatible model', () => {
@@ -18,9 +18,9 @@ describe('OpenAI-compatible model', () => {
     },
   });
 
-  function assistant(): AssistantService {
-    return new AssistantService(
-      new OpenAIModel({
+  function assistant(): Assistant {
+    return new Assistant(
+      createOpenAICompatibleEndpoints({
         model: config.model.name,
         baseUrl: config.model.apiBase,
         apiKey: config.model.apiKey,
@@ -61,10 +61,10 @@ describe('OpenAI-compatible model', () => {
 
   it('short-circuits model operations after a failed health check', async () => {
     let generationCount = 0;
-    const service = new AssistantService(
+    const service = new Assistant(
       {
         checkHealth: () => Promise.resolve(false),
-        generate: () => {
+        complete: () => {
           generationCount += 1;
           return Promise.resolve('{}');
         },
@@ -390,8 +390,11 @@ describe('OpenAI-compatible model', () => {
     };
 
     try {
-      const service = new AssistantService(
-        new OpenAIModel({ model: 'test', baseUrl: 'http://ollama.test' }),
+      const service = new Assistant(
+        createOpenAICompatibleEndpoints({
+          model: 'test',
+          baseUrl: 'http://ollama.test',
+        }),
         { fields: [], contextWindow: 100 }
       );
       const response = await service.chat(
