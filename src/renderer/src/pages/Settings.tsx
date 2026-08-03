@@ -1,5 +1,5 @@
 import type { ClientConfig } from '@/wakaru/schema/config.js';
-import type { AppContext } from '../app/context.js';
+import type { AppContext } from '../lib/types.js';
 
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
@@ -13,7 +13,7 @@ import {
 } from '../components/ui/card.js';
 import { Input } from '../components/ui/input.js';
 import { Label } from '../components/ui/label.js';
-import { errorMessage } from '../lib/errors.js';
+import { errorMessage } from '../lib/utils.js';
 
 export function SettingsScreen() {
   const { config, setConfig } = useOutletContext<AppContext>();

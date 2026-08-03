@@ -11,18 +11,18 @@ export type ModelEndpoints = Readonly<{
 
 export type LLMAvailability = 'unchecked' | 'available' | 'unavailable';
 
-import { parseJsonText } from './validation/json.js';
+import { parseJsonText } from './validation.js';
 import {
   WakaruProviderRequestError,
   WakaruProviderResponseError,
 } from './errors.js';
 
-export const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com';
+export const DEFAULT_BASE_URL = 'https://api.openai.com';
 const HEALTH_PATH = '/v1/models';
 const COMPLETIONS_PATH = '/v1/chat/completions';
 
-export type OpenAICompatibleModelConfig = Readonly<{
-  kind?: 'openai-compatible' | undefined;
+export type OpenAIModelConfig = Readonly<{
+  kind?: 'openai' | undefined;
   model: string;
   apiKey?: string | null | undefined;
   baseUrl?: string | undefined;
@@ -35,8 +35,7 @@ export type CustomModelConfig = Readonly<{
   complete: (request: ModelGenerationRequest) => Promise<string>;
 }>;
 
-export type ModelEndpointConfig =
-  OpenAICompatibleModelConfig | CustomModelConfig;
+export type ModelEndpointConfig = OpenAIModelConfig | CustomModelConfig;
 
 export function createModelEndpoints(
   config: ModelEndpointConfig
@@ -47,20 +46,20 @@ export function createModelEndpoints(
       complete: config.complete,
     };
   }
-  return createOpenAICompatibleEndpoints(config);
+  return createOpenAIEndpoints(config);
 }
 
-export function createOpenAICompatibleEndpoints(
-  config: OpenAICompatibleModelConfig
+export function createOpenAIEndpoints(
+  config: OpenAIModelConfig
 ): ModelEndpoints {
   return {
-    checkHealth: () => checkOpenAICompatibleHealth(config),
-    complete: (request) => completeOpenAICompatible(config, request),
+    checkHealth: () => checkOpenAIHealth(config),
+    complete: (request) => completeOpenAI(config, request),
   };
 }
 
-export async function checkOpenAICompatibleHealth(
-  config: OpenAICompatibleModelConfig
+export async function checkOpenAIHealth(
+  config: OpenAIModelConfig
 ): Promise<boolean> {
   try {
     const response = await modelFetch(config)(modelUrl(config, HEALTH_PATH), {
@@ -73,8 +72,8 @@ export async function checkOpenAICompatibleHealth(
   }
 }
 
-export async function completeOpenAICompatible(
-  config: OpenAICompatibleModelConfig,
+export async function completeOpenAI(
+  config: OpenAIModelConfig,
   request: ModelGenerationRequest
 ): Promise<string> {
   const response = await modelFetch(config)(
@@ -123,20 +122,18 @@ export async function completeOpenAICompatible(
   return content;
 }
 
-function modelFetch(config: OpenAICompatibleModelConfig): typeof fetch {
+function modelFetch(config: OpenAIModelConfig): typeof fetch {
   return config.fetch ?? fetch;
 }
 
-function modelHeaders(
-  config: OpenAICompatibleModelConfig
-): Record<string, string> {
+function modelHeaders(config: OpenAIModelConfig): Record<string, string> {
   return {
     'content-type': 'application/json',
     ...(config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {}),
   };
 }
 
-function modelUrl(config: OpenAICompatibleModelConfig, path: string): string {
-  const baseUrl = config.baseUrl ?? DEFAULT_OPENAI_BASE_URL;
+function modelUrl(config: OpenAIModelConfig, path: string): string {
+  const baseUrl = config.baseUrl ?? DEFAULT_BASE_URL;
   return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }

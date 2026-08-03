@@ -2,7 +2,7 @@ import type { ClientConfig } from '@/wakaru/schema/config.js';
 import type { AssistantCandidate } from '@/wakaru/types.js';
 import { clientConfigSchema } from '@/wakaru/schema/config.js';
 import { miningCandidateSchema } from '@/wakaru/schemas.js';
-import { parseWithSchema } from '@/wakaru/validation/json.js';
+import { parseWithSchema } from '@/wakaru/validation.js';
 
 type TestConfigOverrides = Readonly<{
   model?: Partial<ClientConfig['model']>;

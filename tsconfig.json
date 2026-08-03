@@ -9,8 +9,7 @@
     "outDir": "dist",
     "paths": {
       "@/*": ["./src/*"],
-      "@renderer/*": ["./src/renderer/*"],
-      "@wakaru/*": ["./src/wakaru/*"]
+      "@renderer/*": ["./src/renderer/*"]
     },
     "strict": true,
     "esModuleInterop": true,

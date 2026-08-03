@@ -1,6 +1,6 @@
 import { BookOpen, Library, Settings } from 'lucide-react';
 import { NavLink } from 'react-router';
-import { cn } from '@/renderer/lib/utils';
+import { cn } from '@/renderer/src/lib/utils';
 
 const ROUTES = [
   { to: '/mine', label: 'Mine', icon: BookOpen },

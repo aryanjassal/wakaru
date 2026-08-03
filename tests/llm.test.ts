@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { createOpenAICompatibleEndpoints } from '@/wakaru/model.js';
+import { createOpenAIEndpoints } from '@/wakaru/model.js';
 import { Assistant } from '@/wakaru/assistant.js';
 import { WakaruLLMUnavailableError } from '@/wakaru/errors.js';
 import { createTestCandidate, getTestConfig } from './config.js';
@@ -20,7 +20,7 @@ describe('OpenAI-compatible model', () => {
 
   function assistant(): Assistant {
     return new Assistant(
-      createOpenAICompatibleEndpoints({
+      createOpenAIEndpoints({
         model: config.model.name,
         baseUrl: config.model.apiBase,
         apiKey: config.model.apiKey,
@@ -391,7 +391,7 @@ describe('OpenAI-compatible model', () => {
 
     try {
       const service = new Assistant(
-        createOpenAICompatibleEndpoints({
+        createOpenAIEndpoints({
           model: 'test',
           baseUrl: 'http://ollama.test',
         }),

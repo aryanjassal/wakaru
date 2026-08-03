@@ -1,11 +1,11 @@
 import type { ClientConfig } from '@/wakaru/schema/config.js';
 import type { SavedWord } from '@/wakaru/types.js';
-import type { AppContext } from './context.js';
+import type { AppContext } from '../lib/types.js';
 
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet } from 'react-router';
 import { Sidebar } from '../components/Sidebar.js';
-import { errorMessage } from '../lib/errors.js';
+import { errorMessage } from '../lib/utils.js';
 
 export function App() {
   const [config, setConfig] = useState<ClientConfig | null>(null);

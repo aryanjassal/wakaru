@@ -1,6 +1,6 @@
 import type { TextareaHTMLAttributes } from 'react';
 
-import { cn } from '@/renderer/lib/utils';
+import { cn } from '@/renderer/src/lib/utils';
 
 export function Textarea({
   className,

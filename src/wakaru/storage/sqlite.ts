@@ -11,7 +11,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { parseWithSchema } from '@/wakaru/validation/json.js';
+import { parseWithSchema } from '@/wakaru/validation.js';
 import { WakaruDuplicateDictionarySenseError } from '../errors.js';
 import { WakaruExportSchemaError } from '../errors.js';
 import { savedWordSchema } from '../schema/vocabulary.js';

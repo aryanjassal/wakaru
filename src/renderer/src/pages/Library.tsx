@@ -1,4 +1,4 @@
-import type { AppContext } from '../app/context.js';
+import type { AppContext } from '../lib/types.js';
 
 import { useOutletContext } from 'react-router';
 import { Button } from '../components/ui/button.js';

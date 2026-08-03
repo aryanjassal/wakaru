@@ -1,8 +1,8 @@
 import { Navigate, createHashRouter } from 'react-router';
 import { App } from './App.js';
-import { LibraryScreen } from '../screens/LibraryScreen.js';
-import { MineScreen } from '../screens/MineScreen.js';
-import { SettingsScreen } from '../screens/SettingsScreen.js';
+import { LibraryScreen } from './Library.js';
+import { MineScreen } from './Mine.js';
+import { SettingsScreen } from './Settings.js';
 
 export const router = createHashRouter([
   {

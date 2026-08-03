@@ -2,7 +2,7 @@ import type { ClientConfig } from './schema/config.js';
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { parseJsonText, parseWithSchema } from '@/wakaru/validation/json.js';
+import { parseJsonText, parseWithSchema } from '@/wakaru/validation.js';
 import { clientConfigSchema } from './schema/config.js';
 import { resolveUserPath } from './utils.js';
 

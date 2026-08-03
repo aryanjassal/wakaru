@@ -5,7 +5,7 @@ export * from './wakaru.js';
 export * from './vocabulary.js';
 export * from './assistant.js';
 export * from './model.js';
-export * from './validation/json.js';
+export * from './validation.js';
 export * from './config.js';
 export * from './create.js';
 export * from './create-client.js';

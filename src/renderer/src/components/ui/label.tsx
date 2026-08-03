@@ -1,6 +1,6 @@
 import type { LabelHTMLAttributes } from 'react';
 
-import { cn } from '@/renderer/lib/utils';
+import { cn } from '@/renderer/src/lib/utils';
 
 export function Label({
   className,

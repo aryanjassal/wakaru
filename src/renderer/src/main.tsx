@@ -1,9 +1,12 @@
+import './styles/globals.css';
+
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router';
-import { router } from './app/router.js';
-// @ts-expect-error
-import '../styles/globals.css';
+import { syncSystemTheme } from './lib/theme.js';
+import { router } from './pages/Router.js';
+
+syncSystemTheme();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Renderer root element missing.');

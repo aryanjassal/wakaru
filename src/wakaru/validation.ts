@@ -1,10 +1,10 @@
-import type { AssistantCandidate } from '../types.js';
+import type { AssistantCandidate } from './types.js';
 
 import { z } from 'zod/v4';
-import { miningCandidateSchema } from '../schemas.js';
-import { JsonValidationError } from '../errors.js';
+import { miningCandidateSchema } from './schemas.js';
+import { JsonValidationError } from './errors.js';
 
-export { JsonValidationError } from '../errors.js';
+export { JsonValidationError } from './errors.js';
 
 function issuePath(issue: z.core.$ZodIssue): string {
   return issue.path.length ? issue.path.map(String).join('.') : 'root';

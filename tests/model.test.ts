@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 import {
-  DEFAULT_OPENAI_BASE_URL,
-  checkOpenAICompatibleHealth,
-  completeOpenAICompatible,
+  DEFAULT_BASE_URL,
+  checkOpenAIHealth,
+  completeOpenAI,
 } from '@/wakaru/model.js';
 import {
   WakaruProviderRequestError,
@@ -29,17 +29,17 @@ describe('OpenAI-compatible model endpoints', () => {
 
     try {
       await expect(
-        checkOpenAICompatibleHealth({ model: 'test-model' })
+        checkOpenAIHealth({ model: 'test-model' })
       ).resolves.toBe(true);
       await expect(
-        completeOpenAICompatible(
+        completeOpenAI(
           { model: 'test-model' },
           { prompt: 'test', responseFormat: 'json' }
         )
       ).resolves.toBe('{"ok":true}');
       expect(urls).toEqual([
-        `${DEFAULT_OPENAI_BASE_URL}/v1/models`,
-        `${DEFAULT_OPENAI_BASE_URL}/v1/chat/completions`,
+        `${DEFAULT_BASE_URL}/v1/models`,
+        `${DEFAULT_BASE_URL}/v1/chat/completions`,
       ]);
     } finally {
       globalThis.fetch = originalFetch;
@@ -52,7 +52,7 @@ describe('OpenAI-compatible model endpoints', () => {
 
     try {
       await expect(
-        checkOpenAICompatibleHealth({ model: 'test-model' })
+        checkOpenAIHealth({ model: 'test-model' })
       ).resolves.toBe(false);
     } finally {
       globalThis.fetch = originalFetch;
@@ -65,7 +65,7 @@ describe('OpenAI-compatible model endpoints', () => {
       Promise.resolve(new Response('unavailable', { status: 503 }));
 
     try {
-      const operation = completeOpenAICompatible(
+      const operation = completeOpenAI(
         { model: 'test-model' },
         { prompt: 'test' }
       );
@@ -87,7 +87,7 @@ describe('OpenAI-compatible model endpoints', () => {
 
     try {
       await expect(
-        completeOpenAICompatible({ model: 'test-model' }, { prompt: 'test' })
+        completeOpenAI({ model: 'test-model' }, { prompt: 'test' })
       ).rejects.toBeInstanceOf(WakaruProviderResponseError);
     } finally {
       globalThis.fetch = originalFetch;

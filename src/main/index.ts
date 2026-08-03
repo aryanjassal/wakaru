@@ -16,9 +16,6 @@ import { writeTsvExport } from '@/wakaru/export/tsv-file.js';
 import { SqliteWordStore } from '@/wakaru/storage/sqlite.js';
 import { candidateToSavedWord } from '@/wakaru/storage/words.js';
 
-const preload = fileURLToPath(new URL('../preload/index.js', import.meta.url));
-const renderer = process.env.ELECTRON_RENDERER_URL;
-
 let config = loadConfig();
 const dictionary = dictionaryPath();
 const tokeniserDictionary = tokeniserDictionaryPath();
@@ -67,22 +64,30 @@ function handleApi<Key extends keyof WakaruElectronApi>(channel: Key): void {
 }
 
 function createWindow(): void {
-  const window = new BrowserWindow({
+  const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 900,
     minHeight: 600,
+    autoHideMenuBar: true,
+    show: false,
     webPreferences: {
-      preload,
+      preload: fileURLToPath(new URL('../preload/index.js', import.meta.url)),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
 
-  if (renderer) {
-    void window.loadURL(renderer);
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.show();
+  });
+
+  // HMR for renderer base on electron-vite CLI.
+  // Load the remote URL for development or the local html file for production.
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
-    void window.loadFile(join(import.meta.dirname, '../renderer/index.html'));
+    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 }
 
@@ -103,6 +108,9 @@ void app
     app.quit();
   });
 
+// Quit when all windows are closed, except on macOS. There, it's common
+// for applications and their menu bar to stay active until the user quits
+// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

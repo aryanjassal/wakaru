@@ -9,7 +9,7 @@ import type {
   AssistantCandidateExtension,
 } from './types.js';
 
-import { parseJsonText, parseWithSchema } from './validation/json.js';
+import { parseJsonText, parseWithSchema } from './validation.js';
 import {
   WakaruInvalidInputError,
   WakaruLLMUnavailableError,

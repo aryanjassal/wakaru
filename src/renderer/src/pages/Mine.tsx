@@ -1,6 +1,6 @@
 import type { AssistantCandidate } from '@/wakaru/types.js';
 import type { AnalyseVocabularyResult } from '@/wakaru/vocabulary.js';
-import type { AppContext } from '../app/context.js';
+import type { AppContext } from '../lib/types.js';
 
 import { useState } from 'react';
 import { useOutletContext } from 'react-router';
@@ -16,7 +16,7 @@ import {
 import { Input } from '../components/ui/input.js';
 import { Label } from '../components/ui/label.js';
 import { Textarea } from '../components/ui/textarea.js';
-import { errorMessage } from '../lib/errors.js';
+import { errorMessage } from '../lib/utils.js';
 
 export function MineScreen() {
   const { addSavedWord } = useOutletContext<AppContext>();

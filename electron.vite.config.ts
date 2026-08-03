@@ -1,15 +1,15 @@
 import { resolve } from 'node:path';
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
+import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
     build: {
+      externalizeDeps: true,
       rollupOptions: {
         input: {
-          index: resolve('src/electron/main.ts'),
+          index: resolve('src/main/index.ts'),
         },
       },
     },
@@ -17,16 +17,14 @@ export default defineConfig({
       alias: {
         '@': resolve('src'),
         '@renderer': resolve('src/renderer'),
-        '@wakaru': resolve('src/wakaru'),
       },
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
         input: {
-          index: resolve('src/electron/preload.ts'),
+          index: resolve('src/main/preload.ts'),
         },
         output: {
           format: 'cjs',
@@ -38,7 +36,6 @@ export default defineConfig({
       alias: {
         '@': resolve('src'),
         '@renderer': resolve('src/renderer'),
-        '@wakaru': resolve('src/wakaru'),
       },
     },
   },
@@ -49,7 +46,6 @@ export default defineConfig({
       alias: {
         '@': resolve('src'),
         '@renderer': resolve('src/renderer'),
-        '@wakaru': resolve('src/wakaru'),
       },
     },
   },
